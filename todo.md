@@ -1,0 +1,1 @@
+-   support running each SnapFlow in a separate worker (in `runSnapFlows`)

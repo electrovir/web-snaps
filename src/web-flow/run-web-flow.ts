@@ -1,0 +1,127 @@
+import {check} from '@augment-vir/assert';
+import {
+    ensureErrorAndPrependMessage,
+    log as logImport,
+    type PartialWithUndefined,
+} from '@augment-vir/common';
+import {getNowInIsoString, getNowInUtcTimezone} from 'date-vir';
+import {JSDOM} from 'jsdom';
+import {type LoadedBrowser} from '../browser/loaded-browser.js';
+import {getAllPageHtml} from '../web-snap/get-html.js';
+import {saveWebSnap} from '../web-snap/save-web-snap.js';
+import {type InProgressWebSnap} from '../web-snap/web-snap.js';
+import {type PhaseRunParams} from './web-flow-phase.js';
+import {type WebFlow} from './web-flow.js';
+
+/**
+ * Options for {@link runWebFlow}.
+ *
+ * @category Internal
+ */
+export type RunWebFlowOptions = PartialWithUndefined<{
+    /**
+     * Disable debugging. By default debugging is enabled.
+     *
+     * @default false
+     */
+    disableDebug: boolean;
+    /**
+     * Disable all phase snapshots, even when a phase has `takeSnapshot` set to `true`.
+     *
+     * @default false
+     */
+    disableSnapshots: boolean;
+    /** Path to the directory that phase snapshots will be saved to. */
+    webSnapDirPath: string;
+}>;
+
+/**
+ * Run a single {@link WebFlow}. A browser must already be loaded beforehand.
+ *
+ * @category Internal
+ */
+export async function runWebFlow<Context, Output>(
+    browserParams: Readonly<LoadedBrowser<Context>>,
+    webFlow: Readonly<WebFlow<Context, Output>>,
+    options: Readonly<RunWebFlowOptions>,
+): Promise<undefined | Output> {
+    const log = logImport.if(!options.disableDebug);
+
+    try {
+        const page = await browserParams.browserContext.newPage();
+        const webFlowStartedAt = getNowInUtcTimezone();
+        await page.goto(webFlow.startUrl);
+
+        log.faint(`${webFlow.flowKey}: start`);
+
+        const params: Omit<PhaseRunParams<Context>, 'phaseStartedAt'> = {
+            ...browserParams,
+            originalUrl: webFlow.startUrl,
+            page,
+            webFlowStartedAt,
+            webFlowKey: webFlow.flowKey,
+            debug: !options.disableDebug,
+        };
+
+        let output: undefined | void | Output;
+
+        const webSnapInProgress: InProgressWebSnap = {
+            webFlow: {
+                flowKey: webFlow.flowKey,
+                startUrl: webFlow.startUrl,
+                phaseNames: webFlow.phaseNames,
+            },
+            generatedAt: getNowInIsoString(),
+            phaseSnaps: [],
+        };
+
+        try {
+            for (const [
+                index,
+                phase,
+            ] of webFlow.phases.entries()) {
+                try {
+                    const phaseParams: PhaseRunParams<Context> = {
+                        ...params,
+                        phaseStartedAt: getNowInUtcTimezone(),
+                    };
+
+                    log.faint(`${webFlow.flowKey}: phase ${index}: ${phase.name}`);
+
+                    output = await phase.run(phaseParams);
+
+                    if (!options.disableSnapshots && !phase.disableSnapshot) {
+                        const rawHtml = await getAllPageHtml(page, browserParams.storeKey);
+                        const finalHtml = phase.sanitizeSnapshot
+                            ? await phase.sanitizeSnapshot({
+                                  ...phaseParams,
+                                  get dom() {
+                                      return new JSDOM(rawHtml);
+                                  },
+                                  domString: rawHtml,
+                              })
+                            : rawHtml;
+
+                        webSnapInProgress.phaseSnaps.push({
+                            pageHtml: check.isString(finalHtml) ? finalHtml : finalHtml.serialize(),
+                            phaseName: phase.name,
+                        });
+                    }
+                } catch (error) {
+                    throw ensureErrorAndPrependMessage(
+                        error,
+                        `Phase '${phase.name}' in WebFlow '${webFlow.flowKey}' failed:`,
+                    );
+                }
+            }
+        } finally {
+            if (webSnapInProgress.phaseSnaps.length && options.webSnapDirPath) {
+                await saveWebSnap(webFlow, webSnapInProgress, !options.disableDebug);
+            }
+        }
+
+        return output ?? undefined;
+    } catch (error) {
+        throw ensureErrorAndPrependMessage(error, `WebFlow '${webFlow.flowKey}' failed:`);
+    }
+}
