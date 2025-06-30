@@ -39,6 +39,28 @@ export function createPhaseNamesEnum<const Init extends Readonly<WebFlowInit>>(
     this: void,
     webFlow: Readonly<Init>,
 ): PhaseNamesEnum<Init> {
+    const duplicatePhaseNames = webFlow.phases.reduce(
+        (accum, phase) => {
+            if (phase.name in accum.allNames) {
+                accum.duplicateNames.add(phase.name);
+            } else {
+                accum.allNames.add(phase.name);
+            }
+
+            return accum;
+        },
+        {
+            allNames: new Set<string>(),
+            duplicateNames: new Set<string>(),
+        },
+    ).duplicateNames;
+
+    if (duplicatePhaseNames.size) {
+        throw new Error(
+            `Duplicate phase names given in WebFlow '${webFlow.flowKey}': ${Array.from(duplicatePhaseNames).join(',')}`,
+        );
+    }
+
     return arrayToObject(webFlow.phases, ({name}) => {
         return {
             key: name,
