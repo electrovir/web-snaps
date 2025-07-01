@@ -1,4 +1,4 @@
-import {type MaybePromise} from '@augment-vir/common';
+import {type MaybePromise, type PartialWithUndefined} from '@augment-vir/common';
 import {type FullDate, type UtcTimezone} from 'date-vir';
 import {type JSDOM} from 'jsdom';
 import {type LoadedBrowserPage} from '../browser/loaded-browser.js';
@@ -16,13 +16,24 @@ export type PhaseRunParams<Context> = LoadedBrowserPage<Context> & {
 };
 
 /**
+ * Return type of {@link PhaseRunMethod}.
+ *
+ * @category Internal
+ */
+export type PhaseRunResult<Output> = PartialWithUndefined<{
+    /** @default false */
+    disableSnapshot: boolean;
+    output: Output;
+}>;
+
+/**
  * The {@link WebFlowPhase}'s `run` method type.
  *
  * @category Internal
  */
 export type PhaseRunMethod<Context, Output> = (
     params: Readonly<PhaseRunParams<Context>>,
-) => MaybePromise<void | undefined | Output>;
+) => MaybePromise<PhaseRunResult<Output> | void | undefined>;
 
 /**
  * All parameters for a {@link WebFlowPhase} `sanitizeSnapshot` method.

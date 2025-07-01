@@ -46,7 +46,9 @@ describe(defineSnapSuite.name, () => {
                                     readonly run: ({
                                         page,
                                     }: Readonly<PhaseRunParams<MockContext>>) => Promise<{
-                                        wordCount: number;
+                                        output: {
+                                            wordCount: number;
+                                        };
                                     }>;
                                 },
                             ];
@@ -75,9 +77,9 @@ describe(defineSnapSuite.name, () => {
                                     }: SanitizeSnapshotParams<MockContext>) => string;
                                     readonly run: ({
                                         page,
-                                    }: Readonly<
-                                        PhaseRunParams<MockContext>
-                                    >) => Promise<MockOutput>;
+                                    }: Readonly<PhaseRunParams<MockContext>>) => Promise<{
+                                        output: MockOutput;
+                                    }>;
                                 },
                             ];
                         }

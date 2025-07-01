@@ -60,7 +60,9 @@ const myWebFlows = [
                     await page.getByText('more information...').click();
                     await page.getByText('example domains').first().waitFor({state: 'visible'});
                     return {
-                        parsedData: {},
+                        output: {
+                            parsedData: {},
+                        },
                     };
                 },
             },

@@ -41,9 +41,11 @@ export const mockWebFlows = [
                     await page.getByText('more information...').click();
                     await page.getByText('example domains').first().waitFor({state: 'visible'});
                     return {
-                        wordCount: collapseWhiteSpace(
-                            (await page.locator('.help-article').textContent()) || '',
-                        ).split(' ').length,
+                        output: {
+                            wordCount: collapseWhiteSpace(
+                                (await page.locator('.help-article').textContent()) || '',
+                            ).split(' ').length,
+                        },
                     };
                 },
             },
@@ -79,9 +81,11 @@ export const mockWebFlows = [
                     await page.getByText('more information...').click();
                     await page.getByText('example domains').first().waitFor({state: 'visible'});
                     return {
-                        wordCount: collapseWhiteSpace(
-                            (await page.locator('.help-article').textContent()) || '',
-                        ).split(' ').length,
+                        output: {
+                            wordCount: collapseWhiteSpace(
+                                (await page.locator('.help-article').textContent()) || '',
+                            ).split(' ').length,
+                        },
                     };
                 },
             },

@@ -10,7 +10,7 @@ import {type LoadedBrowser} from '../browser/loaded-browser.js';
 import {getAllPageHtml} from '../web-snap/get-html.js';
 import {saveWebSnap} from '../web-snap/save-web-snap.js';
 import {type InProgressWebSnap} from '../web-snap/web-snap.js';
-import {type PhaseRunParams} from './web-flow-phase.js';
+import {type PhaseRunParams, type PhaseRunResult} from './web-flow-phase.js';
 import {type WebFlow} from './web-flow.js';
 
 /**
@@ -88,10 +88,16 @@ export async function runWebFlow<Context, Output>(
 
                     log.faint(`${webFlow.flowKey}: phase ${index}: ${phase.name}`);
 
-                    const phaseResult = await phase.run(phaseParams);
-                    phaseOutputs.push(phaseResult === undefined ? undefined : phaseResult);
+                    const {disableSnapshot, output}: PhaseRunResult<Output> = (await phase.run(
+                        phaseParams,
+                    )) || {
+                        disableSnapshot: false,
+                        output: undefined,
+                    };
 
-                    if (!options.disableSnapshots && !phase.disableSnapshot) {
+                    phaseOutputs.push(output);
+
+                    if (!options.disableSnapshots && !phase.disableSnapshot && !disableSnapshot) {
                         const rawHtml = await getAllPageHtml(page, browserParams.storeKey);
                         const finalHtml = phase.sanitizeSnapshot
                             ? await phase.sanitizeSnapshot({
