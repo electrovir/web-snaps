@@ -5,9 +5,10 @@ import {
     type PartialWithUndefined,
 } from '@augment-vir/common';
 import {join} from 'node:path';
+import {type Browser, type BrowserContext} from 'rebrowser-playwright';
 import {type InitBrowserOptions} from '../browser/init-browser.js';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
-import {withBrowserContext} from '../browser/run-browser.js';
+import {setupBrowser, withBrowserContext} from '../browser/run-browser.js';
 import {runWebFlow, type RunWebFlowOptions} from '../web-flow/run-web-flow.js';
 import {createPhaseNamesEnum, type WebFlow, type WebFlowInit} from '../web-flow/web-flow.js';
 
@@ -16,7 +17,18 @@ import {createPhaseNamesEnum, type WebFlow, type WebFlowInit} from '../web-flow/
  *
  * @category Internal
  */
-export type RunWebFlowsOptions = RunWebFlowOptions &
+export type RunWebFlowsOptions = PartialWithUndefined<{
+    /**
+     * If `true`, the browser and browser context will not automatically be existed once all
+     * WebFlows have finished running.
+     *
+     * @default false
+     */
+    keepBrowserContext: boolean;
+
+    browserOptions: Readonly<PartialWithUndefined<InitBrowserOptions>>;
+}> &
+    RunWebFlowOptions &
     (
         | {
               /**
@@ -72,7 +84,7 @@ export type SnapSuite<Context, Output> = {
         context: Context,
         webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
         options?: Readonly<Omit<RunWebFlowsOptions, 'webSnapDirPath'>>,
-    ): Promise<(Output | undefined)[][]>;
+    ): Promise<RunWebFlowsOutput<Output>>;
     /** Runs {@link withBrowserContext} with the suite's `Context` type parameter already set. */
     withBrowserContext<T = void>(
         context: Context,
@@ -131,6 +143,27 @@ export function defineSnapSuite<Context, Output>(
 }
 
 /**
+ * Output of `runWebFlows`.
+ *
+ * @category Internal
+ */
+export type RunWebFlowsOutput<Output> = {
+    /**
+     * The browser context established for this WebFlows run. This will be `undefined` unless the
+     * `keepBrowserContext` option is set to `true`. When `keepBrowserContext` is set to `true`,
+     * make sure to close this yourself.
+     */
+    browserContext: BrowserContext | undefined;
+    /**
+     * The browser context established for this WebFlows run. This will be `undefined` unless the
+     * `keepBrowserContext` option is set to `true`. When `keepBrowserContext` is set to `true`,
+     * make sure to close this yourself.
+     */
+    browser: Browser | undefined;
+    output: (Output | undefined)[][];
+};
+
+/**
  * Runs an array of {@link WebFlow} instances. Use {@link defineSnapSuite} instead of calling this
  * function directly for cleaner Type Parameter inference.
  *
@@ -140,7 +173,7 @@ export async function runWebFlows<Context, Output>(
     context: Context,
     webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
     options: Readonly<RunWebFlowsOptions>,
-): Promise<(Output | undefined)[][]> {
+): Promise<RunWebFlowsOutput<Output>> {
     const duplicateFlowKeys = webFlows.reduce(
         (accum, webFlow) => {
             if (webFlow.flowKey in accum.allKeys) {
@@ -161,7 +194,7 @@ export async function runWebFlows<Context, Output>(
         throw new Error(`Duplicate WebFlow keys given: ${Array.from(duplicateFlowKeys).join(',')}`);
     }
 
-    return await withBrowserContext(context, async (browserParams) => {
+    async function internalRunWebFlows(browserParams: Readonly<LoadedBrowser<Context>>) {
         const chunks = chunkArray(webFlows, {
             chunkSize: options.serial ? 1 : options.batchSize || 10,
         });
@@ -178,7 +211,24 @@ export async function runWebFlows<Context, Output>(
         });
 
         return allWebFlowPhaseOutputs;
-    });
+    }
+
+    if (options.keepBrowserContext) {
+        const browserParams = await setupBrowser(context, options.browserOptions);
+        const output = await internalRunWebFlows(browserParams);
+
+        return {
+            browserContext: browserParams.browserContext,
+            browser: browserParams.browser,
+            output,
+        };
+    } else {
+        return {
+            browserContext: undefined,
+            browser: undefined,
+            output: await withBrowserContext(context, internalRunWebFlows, options.browserOptions),
+        };
+    }
 }
 
 /**

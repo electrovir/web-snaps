@@ -122,20 +122,24 @@ describe(defineSnapSuite.name, () => {
         assert.isLengthAtLeast(mockWebFlows, 1);
 
         const outputs = await mockSnapSuite.runWebFlows(mockContext, mockWebFlows);
-        assert.deepEquals(outputs, [
-            [
-                undefined,
-                {
-                    wordCount: 115,
-                },
+        assert.deepEquals(outputs, {
+            browser: undefined,
+            browserContext: undefined,
+            output: [
+                [
+                    undefined,
+                    {
+                        wordCount: 115,
+                    },
+                ],
+                [
+                    undefined,
+                    {
+                        wordCount: 115,
+                    },
+                ],
             ],
-            [
-                undefined,
-                {
-                    wordCount: 115,
-                },
-            ],
-        ]);
+        });
 
         /**
          * # ================
