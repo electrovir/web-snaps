@@ -1,6 +1,7 @@
 import {
     awaitedForEach,
     chunkArray,
+    ensureError,
     type MaybePromise,
     type PartialWithUndefined,
 } from '@augment-vir/common';
@@ -8,7 +9,7 @@ import {join} from 'node:path';
 import {type Browser, type BrowserContext} from 'rebrowser-playwright';
 import {type InitBrowserOptions} from '../browser/init-browser.js';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
-import {setupBrowser, withBrowserContext} from '../browser/run-browser.js';
+import {withBrowserContext} from '../browser/run-browser.js';
 import {runWebFlow, type RunWebFlowOptions} from '../web-flow/run-web-flow.js';
 import {createPhaseNamesEnum, type WebFlow, type WebFlowInit} from '../web-flow/web-flow.js';
 
@@ -18,13 +19,19 @@ import {createPhaseNamesEnum, type WebFlow, type WebFlowInit} from '../web-flow/
  * @category Internal
  */
 export type RunWebFlowsOptions = PartialWithUndefined<{
-    /**
-     * If `true`, the browser and browser context will not automatically be existed once all
-     * WebFlows have finished running.
-     *
-     * @default false
-     */
-    keepBrowserContext: boolean;
+    /** Runs before the WebFlows start. */
+    preHook: (
+        params: Readonly<Pick<LoadedBrowser<any>, 'browser' | 'browserContext'>>,
+    ) => MaybePromise<void>;
+    /** Runs after the WebFlows finish, even if they error out. */
+    postHook: (
+        params: Readonly<
+            Pick<LoadedBrowser<any>, 'browser' | 'browserContext'> & {
+                /** If any WebFlow errored out, this is populated with that error. */
+                error?: undefined | Error;
+            }
+        >,
+    ) => MaybePromise<void>;
 
     browserOptions: Readonly<PartialWithUndefined<InitBrowserOptions>>;
 }> &
@@ -194,47 +201,53 @@ export async function runWebFlows<Context, Output>(
         throw new Error(`Duplicate WebFlow keys given: ${Array.from(duplicateFlowKeys).join(',')}`);
     }
 
-    async function internalRunWebFlows(browserParams: Readonly<LoadedBrowser<Context>>) {
-        const chunks = chunkArray(webFlows, {
-            chunkSize: options.serial ? 1 : options.batchSize || 10,
-        });
+    return {
+        browserContext: undefined,
+        browser: undefined,
+        output: await withBrowserContext(
+            context,
+            async (browserParams) => {
+                await options.preHook?.({
+                    browser: browserParams.browser,
+                    browserContext: browserParams.browserContext,
+                });
 
-        const allWebFlowPhaseOutputs: (Output | undefined)[][] = [];
+                let error: undefined | Error;
+                const allWebFlowPhaseOutputs: (Output | undefined)[][] = [];
+                try {
+                    const chunks = chunkArray(webFlows, {
+                        chunkSize: options.serial ? 1 : options.batchSize || 10,
+                    });
 
-        await awaitedForEach(chunks, async (chunk) => {
-            const chunkOutputs = await Promise.all(
-                chunk.map(async (webFlow) => {
-                    return await runWebFlow<Context, Output>(browserParams, webFlow, options);
-                }),
-            );
-            allWebFlowPhaseOutputs.push(...chunkOutputs);
-        });
+                    await awaitedForEach(chunks, async (chunk) => {
+                        const chunkOutputs = await Promise.all(
+                            chunk.map(async (webFlow) => {
+                                return await runWebFlow<Context, Output>(
+                                    browserParams,
+                                    webFlow,
+                                    options,
+                                );
+                            }),
+                        );
+                        allWebFlowPhaseOutputs.push(...chunkOutputs);
+                    });
+                } catch (caught) {
+                    error = ensureError(caught);
+                }
+                await options.postHook?.({
+                    browser: browserParams.browser,
+                    browserContext: browserParams.browserContext,
+                    error,
+                });
+                if (error) {
+                    throw error;
+                }
 
-        return allWebFlowPhaseOutputs;
-    }
-
-    if (options.keepBrowserContext) {
-        const browserParams = await setupBrowser(context, options.browserOptions);
-        try {
-            const output = await internalRunWebFlows(browserParams);
-
-            return {
-                browserContext: browserParams.browserContext,
-                browser: browserParams.browser,
-                output,
-            };
-        } catch (error) {
-            await browserParams.browserContext.close();
-            await browserParams.browser.close();
-            throw error;
-        }
-    } else {
-        return {
-            browserContext: undefined,
-            browser: undefined,
-            output: await withBrowserContext(context, internalRunWebFlows, options.browserOptions),
-        };
-    }
+                return allWebFlowPhaseOutputs;
+            },
+            options.browserOptions,
+        ),
+    };
 }
 
 /**
