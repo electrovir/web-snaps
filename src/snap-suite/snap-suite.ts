@@ -6,7 +6,6 @@ import {
     type PartialWithUndefined,
 } from '@augment-vir/common';
 import {join} from 'node:path';
-import {type Browser, type BrowserContext} from 'rebrowser-playwright';
 import {type InitBrowserOptions} from '../browser/init-browser.js';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
 import {withBrowserContext} from '../browser/run-browser.js';
@@ -91,7 +90,7 @@ export type SnapSuite<Context, Output> = {
         context: Context,
         webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
         options?: Readonly<Omit<RunWebFlowsOptions, 'webSnapDirPath'>>,
-    ): Promise<RunWebFlowsOutput<Output>>;
+    ): Promise<(Output | undefined)[][]>;
     /** Runs {@link withBrowserContext} with the suite's `Context` type parameter already set. */
     withBrowserContext<T = void>(
         context: Context,
@@ -150,27 +149,6 @@ export function defineSnapSuite<Context, Output>(
 }
 
 /**
- * Output of `runWebFlows`.
- *
- * @category Internal
- */
-export type RunWebFlowsOutput<Output> = {
-    /**
-     * The browser context established for this WebFlows run. This will be `undefined` unless the
-     * `keepBrowserContext` option is set to `true`. When `keepBrowserContext` is set to `true`,
-     * make sure to close this yourself.
-     */
-    browserContext: BrowserContext | undefined;
-    /**
-     * The browser context established for this WebFlows run. This will be `undefined` unless the
-     * `keepBrowserContext` option is set to `true`. When `keepBrowserContext` is set to `true`,
-     * make sure to close this yourself.
-     */
-    browser: Browser | undefined;
-    output: (Output | undefined)[][];
-};
-
-/**
  * Runs an array of {@link WebFlow} instances. Use {@link defineSnapSuite} instead of calling this
  * function directly for cleaner Type Parameter inference.
  *
@@ -180,7 +158,7 @@ export async function runWebFlows<Context, Output>(
     context: Context,
     webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
     options: Readonly<RunWebFlowsOptions>,
-): Promise<RunWebFlowsOutput<Output>> {
+): Promise<(Output | undefined)[][]> {
     const duplicateFlowKeys = webFlows.reduce(
         (accum, webFlow) => {
             if (webFlow.flowKey in accum.allKeys) {
@@ -201,53 +179,49 @@ export async function runWebFlows<Context, Output>(
         throw new Error(`Duplicate WebFlow keys given: ${Array.from(duplicateFlowKeys).join(',')}`);
     }
 
-    return {
-        browserContext: undefined,
-        browser: undefined,
-        output: await withBrowserContext(
-            context,
-            async (browserParams) => {
-                await options.preHook?.({
-                    browser: browserParams.browser,
-                    browserContext: browserParams.browserContext,
+    return await withBrowserContext(
+        context,
+        async (browserParams) => {
+            await options.preHook?.({
+                browser: browserParams.browser,
+                browserContext: browserParams.browserContext,
+            });
+
+            let error: undefined | Error;
+            const allWebFlowPhaseOutputs: (Output | undefined)[][] = [];
+            try {
+                const chunks = chunkArray(webFlows, {
+                    chunkSize: options.serial ? 1 : options.batchSize || 10,
                 });
 
-                let error: undefined | Error;
-                const allWebFlowPhaseOutputs: (Output | undefined)[][] = [];
-                try {
-                    const chunks = chunkArray(webFlows, {
-                        chunkSize: options.serial ? 1 : options.batchSize || 10,
-                    });
-
-                    await awaitedForEach(chunks, async (chunk) => {
-                        const chunkOutputs = await Promise.all(
-                            chunk.map(async (webFlow) => {
-                                return await runWebFlow<Context, Output>(
-                                    browserParams,
-                                    webFlow,
-                                    options,
-                                );
-                            }),
-                        );
-                        allWebFlowPhaseOutputs.push(...chunkOutputs);
-                    });
-                } catch (caught) {
-                    error = ensureError(caught);
-                }
-                await options.postHook?.({
-                    browser: browserParams.browser,
-                    browserContext: browserParams.browserContext,
-                    error,
+                await awaitedForEach(chunks, async (chunk) => {
+                    const chunkOutputs = await Promise.all(
+                        chunk.map(async (webFlow) => {
+                            return await runWebFlow<Context, Output>(
+                                browserParams,
+                                webFlow,
+                                options,
+                            );
+                        }),
+                    );
+                    allWebFlowPhaseOutputs.push(...chunkOutputs);
                 });
-                if (error) {
-                    throw error;
-                }
+            } catch (caught) {
+                error = ensureError(caught);
+            }
+            await options.postHook?.({
+                browser: browserParams.browser,
+                browserContext: browserParams.browserContext,
+                error,
+            });
+            if (error) {
+                throw error;
+            }
 
-                return allWebFlowPhaseOutputs;
-            },
-            options.browserOptions,
-        ),
-    };
+            return allWebFlowPhaseOutputs;
+        },
+        options.browserOptions,
+    );
 }
 
 /**
