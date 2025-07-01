@@ -123,12 +123,18 @@ describe(defineSnapSuite.name, () => {
 
         const outputs = await mockSnapSuite.runWebFlows(mockContext, mockWebFlows);
         assert.deepEquals(outputs, [
-            {
-                wordCount: 115,
-            },
-            {
-                wordCount: 115,
-            },
+            [
+                undefined,
+                {
+                    wordCount: 115,
+                },
+            ],
+            [
+                undefined,
+                {
+                    wordCount: 115,
+                },
+            ],
         ]);
 
         /**

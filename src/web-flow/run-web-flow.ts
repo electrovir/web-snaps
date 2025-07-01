@@ -44,7 +44,7 @@ export async function runWebFlow<Context, Output>(
     browserParams: Readonly<LoadedBrowser<Context>>,
     webFlow: Readonly<WebFlow<Context, Output>>,
     options: Readonly<RunWebFlowOptions>,
-): Promise<undefined | Output> {
+): Promise<(undefined | Output)[]> {
     const log = logImport.if(!options.disableDebug);
 
     try {
@@ -63,7 +63,7 @@ export async function runWebFlow<Context, Output>(
             debug: !options.disableDebug,
         };
 
-        let output: undefined | void | Output;
+        const phaseOutputs: (undefined | Output)[] = [];
 
         const webSnapInProgress: InProgressWebSnap = {
             webFlow: {
@@ -88,7 +88,8 @@ export async function runWebFlow<Context, Output>(
 
                     log.faint(`${webFlow.flowKey}: phase ${index}: ${phase.name}`);
 
-                    output = await phase.run(phaseParams);
+                    const phaseResult = await phase.run(phaseParams);
+                    phaseOutputs.push(phaseResult === undefined ? undefined : phaseResult);
 
                     if (!options.disableSnapshots && !phase.disableSnapshot) {
                         const rawHtml = await getAllPageHtml(page, browserParams.storeKey);
@@ -120,7 +121,7 @@ export async function runWebFlow<Context, Output>(
             }
         }
 
-        return output ?? undefined;
+        return phaseOutputs;
     } catch (error) {
         throw ensureErrorAndPrependMessage(error, `WebFlow '${webFlow.flowKey}' failed:`);
     }

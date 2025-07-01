@@ -72,7 +72,7 @@ export type SnapSuite<Context, Output> = {
         context: Context,
         webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
         options?: Readonly<Omit<RunWebFlowsOptions, 'webSnapDirPath'>>,
-    ): Promise<(Output | undefined)[]>;
+    ): Promise<(Output | undefined)[][]>;
     /** Runs {@link withBrowserContext} with the suite's `Context` type parameter already set. */
     withBrowserContext<T = void>(
         context: Context,
@@ -140,7 +140,7 @@ export async function runWebFlows<Context, Output>(
     context: Context,
     webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
     options: Readonly<RunWebFlowsOptions>,
-): Promise<(Output | undefined)[]> {
+): Promise<(Output | undefined)[][]> {
     const duplicateFlowKeys = webFlows.reduce(
         (accum, webFlow) => {
             if (webFlow.flowKey in accum.allKeys) {
@@ -166,7 +166,7 @@ export async function runWebFlows<Context, Output>(
             chunkSize: options.serial ? 1 : options.batchSize || 10,
         });
 
-        const outputs: (Output | undefined)[] = [];
+        const allWebFlowPhaseOutputs: (Output | undefined)[][] = [];
 
         await awaitedForEach(chunks, async (chunk) => {
             const chunkOutputs = await Promise.all(
@@ -174,10 +174,10 @@ export async function runWebFlows<Context, Output>(
                     return await runWebFlow<Context, Output>(browserParams, webFlow, options);
                 }),
             );
-            outputs.push(...chunkOutputs);
+            allWebFlowPhaseOutputs.push(...chunkOutputs);
         });
 
-        return outputs;
+        return allWebFlowPhaseOutputs;
     });
 }
 
