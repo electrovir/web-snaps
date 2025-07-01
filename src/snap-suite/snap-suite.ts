@@ -215,13 +215,19 @@ export async function runWebFlows<Context, Output>(
 
     if (options.keepBrowserContext) {
         const browserParams = await setupBrowser(context, options.browserOptions);
-        const output = await internalRunWebFlows(browserParams);
+        try {
+            const output = await internalRunWebFlows(browserParams);
 
-        return {
-            browserContext: browserParams.browserContext,
-            browser: browserParams.browser,
-            output,
-        };
+            return {
+                browserContext: browserParams.browserContext,
+                browser: browserParams.browser,
+                output,
+            };
+        } catch (error) {
+            await browserParams.browserContext.close();
+            await browserParams.browser.close();
+            throw error;
+        }
     } else {
         return {
             browserContext: undefined,
