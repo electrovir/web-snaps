@@ -6,6 +6,7 @@ import {
 } from '@augment-vir/common';
 import {getNowInIsoString, getNowInUtcTimezone} from 'date-vir';
 import {JSDOM} from 'jsdom';
+import {type Page} from 'rebrowser-playwright';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
 import {getAllPageHtml} from '../web-snap/get-html.js';
 import {saveWebSnap} from '../web-snap/save-web-snap.js';
@@ -33,6 +34,8 @@ export type RunWebFlowOptions = PartialWithUndefined<{
     disableSnapshots: boolean;
     /** Path to the directory that phase snapshots will be saved to. */
     webSnapDirPath: string;
+    /** A page that you want to use instead of creating a new one internally. */
+    existingPage: Page;
 }>;
 
 /**
@@ -43,12 +46,13 @@ export type RunWebFlowOptions = PartialWithUndefined<{
 export async function runWebFlow<Context, Output>(
     browserParams: Readonly<LoadedBrowser<Context>>,
     webFlow: Readonly<WebFlow<Context, Output>>,
-    options: Readonly<RunWebFlowOptions>,
+    options: Readonly<RunWebFlowOptions> = {},
 ): Promise<(undefined | Output)[]> {
     const log = logImport.if(!options.disableDebug);
 
     try {
-        const page = await browserParams.browserContext.newPage();
+        /* node:coverage ignore next 1: not testing the user provided page */
+        const page = options.existingPage || (await browserParams.browserContext.newPage());
         const webFlowStartedAt = getNowInUtcTimezone();
         await page.goto(webFlow.startUrl);
 
