@@ -50,7 +50,7 @@ export type SanitizeSnapshotParams<Context> = {
  *
  * @category Internal
  */
-export type WebFlowPhase<Context = undefined, Output = unknown> = {
+export type WebFlowPhase<Context = any, Output = any> = {
     name: string;
     run: PhaseRunMethod<Context, Output>;
 } & (

@@ -53,7 +53,7 @@ export type LoadedPhaseSnapshot = {
  *
  * @category Main
  */
-export async function loadPhaseSnapshot<const SpecificWebFlow extends Readonly<WebFlow<any, any>>>(
+export async function loadPhaseSnapshot<const SpecificWebFlow extends Readonly<WebFlow>>(
     webFlow: Readonly<SpecificWebFlow>,
     phaseName: Values<SpecificWebFlow['phaseNames']>,
 ): Promise<LoadedPhaseSnapshot> {

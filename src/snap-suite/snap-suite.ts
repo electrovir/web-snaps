@@ -240,8 +240,10 @@ export function defineWebFlow<
     /** Directory path for saved snapshots. */
     webSnapDirPath: string | undefined,
 ): WebFlow<Context, Output, Init> {
-    return {
-        ...init,
+    const webFlow: Omit<WebFlow, 'ContextType' | 'OutputType'> = {
+        flowKey: init.flowKey,
+        phases: init.phases,
+        startUrl: init.startUrl,
         phaseNames: createPhaseNamesEnum(init),
         webSnapPaths: webSnapDirPath
             ? {
@@ -249,11 +251,24 @@ export function defineWebFlow<
                   js: join(webSnapDirPath, init.flowKey + '.mock.js'),
               }
             : undefined,
-        get ContextType(): Context {
-            throw new Error('Cannot read ContextType as a runtime value: it is a type only.');
-        },
-        get OutputType(): Output {
-            throw new Error('Cannot read OutputType as a runtime value: it is a type only.');
-        },
     };
+
+    Object.defineProperties(webFlow, {
+        ContextType: {
+            configurable: false,
+            enumerable: false,
+            get(): Context {
+                throw new Error('Cannot read ContextType as a runtime value: it is a type only.');
+            },
+        },
+        OutputType: {
+            configurable: false,
+            enumerable: false,
+            get(): Output {
+                throw new Error('Cannot read OutputType as a runtime value: it is a type only.');
+            },
+        },
+    });
+
+    return webFlow as WebFlow<Context, Output, Init>;
 }

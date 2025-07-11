@@ -76,8 +76,8 @@ export function createPhaseNamesEnum<const Init extends Readonly<WebFlowInit>>(
  * @category Internal
  */
 export type WebFlow<
-    Context = unknown,
-    Output = unknown,
+    Context = any,
+    Output = any,
     Init extends Readonly<WebFlowInit<Context, Output>> = Readonly<WebFlowInit<Context, Output>>,
 > = Init & {
     phaseNames: PhaseNamesEnum<Init>;
