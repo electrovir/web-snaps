@@ -58,6 +58,8 @@ export async function runWebFlow<Context, Output>(
 
         log.faint(`${webFlow.flowKey}: start`);
 
+        let wasSnapshotBlocked = false as boolean;
+
         const params: Omit<PhaseRunParams<Context>, 'phaseStartedAt'> = {
             ...browserParams,
             originalUrl: webFlow.startUrl,
@@ -65,6 +67,9 @@ export async function runWebFlow<Context, Output>(
             webFlowStartedAt,
             webFlowKey: webFlow.flowKey,
             debug: !options.disableDebug,
+            blockSnapshot(shouldBlockSnapshot) {
+                wasSnapshotBlocked = shouldBlockSnapshot;
+            },
         };
 
         const phaseOutputs: (undefined | Output)[] = [];
@@ -101,7 +106,12 @@ export async function runWebFlow<Context, Output>(
 
                     phaseOutputs.push(output);
 
-                    if (!options.disableSnapshots && !phase.disableSnapshot && !disableSnapshot) {
+                    if (
+                        !wasSnapshotBlocked &&
+                        !options.disableSnapshots &&
+                        !phase.disableSnapshot &&
+                        !disableSnapshot
+                    ) {
                         const rawHtml = await getAllPageHtml(page, browserParams.storeKey);
                         const finalHtml = phase.sanitizeSnapshot
                             ? await phase.sanitizeSnapshot({

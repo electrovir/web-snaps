@@ -13,6 +13,8 @@ export type PhaseRunParams<Context> = LoadedBrowserPage<Context> & {
     webFlowStartedAt: Readonly<FullDate<UtcTimezone>>;
     webFlowKey: string;
     debug: boolean;
+    /** Call this to block snapshots for this phase. */
+    blockSnapshot: (block: boolean) => void;
 };
 
 /**
