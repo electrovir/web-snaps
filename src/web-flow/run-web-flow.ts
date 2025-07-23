@@ -21,11 +21,11 @@ import {type WebFlow} from './web-flow.js';
  */
 export type RunWebFlowOptions = PartialWithUndefined<{
     /**
-     * Disable debugging. By default debugging is enabled.
+     * Disable logging. Errors will still be logged.
      *
      * @default false
      */
-    disableDebug: boolean;
+    silent: boolean;
     /**
      * Disable all phase snapshots, even when a phase has `takeSnapshot` set to `true`.
      *
@@ -48,7 +48,7 @@ export async function runWebFlow<Context, Output>(
     webFlow: Readonly<WebFlow<Context, Output>>,
     options: Readonly<RunWebFlowOptions> = {},
 ): Promise<(undefined | Output)[]> {
-    const log = logImport.if(!options.disableDebug);
+    const log = logImport.if(!options.silent);
 
     try {
         /* node:coverage ignore next 1: not testing the user provided page */
@@ -66,7 +66,7 @@ export async function runWebFlow<Context, Output>(
             page,
             webFlowStartedAt,
             webFlowKey: webFlow.flowKey,
-            debug: !options.disableDebug,
+            silent: !options.silent,
             blockSnapshot(shouldBlockSnapshot) {
                 wasSnapshotBlocked = shouldBlockSnapshot;
             },
@@ -137,7 +137,7 @@ export async function runWebFlow<Context, Output>(
             }
         } finally {
             if (webSnapInProgress.phaseSnaps.length && options.webSnapDirPath) {
-                await saveWebSnap(webFlow, webSnapInProgress, !options.disableDebug);
+                await saveWebSnap(webFlow, webSnapInProgress, !!options.silent);
             }
         }
 

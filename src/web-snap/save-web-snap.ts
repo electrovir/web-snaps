@@ -13,14 +13,14 @@ import {type InProgressWebSnap, type WebSnap} from './web-snap.js';
 export async function saveWebSnap(
     webFlow: Readonly<Pick<WebFlow, 'webSnapPaths'>>,
     webSnap: Readonly<InProgressWebSnap>,
-    debug: boolean,
+    silent: boolean,
 ) {
     assert.isDefined(webFlow.webSnapPaths, 'WebFlow has no snapshot paths.');
     await mkdir(dirname(webFlow.webSnapPaths.js), {
         recursive: true,
     });
     await writeFile(webFlow.webSnapPaths.ts, createWebSnapFileContents(webSnap));
-    log.if(debug).faint(`${webSnap.webFlow.flowKey}: snapshot saved.`);
+    log.if(!silent).faint(`${webSnap.webFlow.flowKey}: snapshot saved.`);
 }
 
 function createWebSnapFileContents(webSnap: Readonly<InProgressWebSnap>) {
