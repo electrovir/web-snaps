@@ -66,7 +66,7 @@ export async function runWebFlow<Context, Output>(
             page,
             webFlowStartedAt,
             webFlowKey: webFlow.flowKey,
-            silent: !options.silent,
+            silent: !!options.silent,
             blockSnapshot(shouldBlockSnapshot) {
                 wasSnapshotBlocked = shouldBlockSnapshot;
             },

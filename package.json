@@ -1,6 +1,6 @@
 {
     "name": "web-snaps",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Browser automation with automatic snapshotting.",
     "keywords": [
         "snapshots",
