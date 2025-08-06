@@ -1,7 +1,8 @@
-import {check} from '@augment-vir/assert';
+import {check, checkWrap} from '@augment-vir/assert';
 import {
     ensureErrorAndPrependMessage,
     log as logImport,
+    wrapInTry,
     type PartialWithUndefined,
 } from '@augment-vir/common';
 import {getNowInIsoString, getNowInUtcTimezone} from 'date-vir';
@@ -97,12 +98,14 @@ export async function runWebFlow<Context, Output>(
 
                     log.faint(`${webFlow.flowKey}: phase ${index}: ${phase.name}`);
 
-                    const {disableSnapshot, output}: PhaseRunResult<Output> = (await phase.run(
-                        phaseParams,
-                    )) || {
-                        disableSnapshot: false,
-                        output: undefined,
-                    };
+                    const phaseResult = await wrapInTry(() => phase.run(phaseParams));
+                    const error = checkWrap.instanceOf(phaseResult, Error);
+
+                    const {disableSnapshot, output}: PhaseRunResult<Output> =
+                        checkWrap.notInstanceOf(phaseResult, Error) || {
+                            disableSnapshot: false,
+                            output: undefined,
+                        };
 
                     phaseOutputs.push(output);
 
@@ -127,6 +130,10 @@ export async function runWebFlow<Context, Output>(
                             pageHtml: check.isString(finalHtml) ? finalHtml : finalHtml.serialize(),
                             phaseName: phase.name,
                         });
+                    }
+
+                    if (error) {
+                        throw error;
                     }
                 } catch (error) {
                     throw ensureErrorAndPrependMessage(
