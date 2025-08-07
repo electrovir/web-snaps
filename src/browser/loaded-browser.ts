@@ -1,4 +1,4 @@
-import {type Browser, type BrowserContext, type Page} from 'rebrowser-playwright';
+import {type BrowserContext, type Page} from 'rebrowser-playwright';
 
 /**
  * A loaded browser instance with context and store key.
@@ -6,7 +6,6 @@ import {type Browser, type BrowserContext, type Page} from 'rebrowser-playwright
  * @category Internal
  */
 export type LoadedBrowser<Context> = {
-    browser: Browser;
     browserContext: BrowserContext;
     storeKey: string;
     context: Context;

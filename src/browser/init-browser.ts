@@ -1,18 +1,9 @@
 import {type Truthy} from '@augment-vir/assert';
-import {type AnyFunction, type AnyObject, type PartialWithUndefined} from '@augment-vir/common';
+import {type AnyFunction, type AnyObject} from '@augment-vir/common';
 import {type QueryThroughShadowOptions} from '@augment-vir/web';
-import {type BrowserContextOptions, chromium, type LaunchOptions} from 'rebrowser-playwright';
+import {mkdir} from 'node:fs/promises';
+import {type BrowserContextOptions, chromium} from 'rebrowser-playwright';
 import {type DataStore} from './data-store.js';
-
-/**
- * Options for starting up a browser and browser context.
- *
- * @category Internal
- */
-export type InitBrowserOptions = {
-    browser: Readonly<LaunchOptions> | undefined;
-    browserContext: Readonly<BrowserContextOptions> | undefined;
-};
 
 /**
  * Initialize a browser and browser context with scripts inserted for handling elements with closed
@@ -20,13 +11,22 @@ export type InitBrowserOptions = {
  *
  * @category Internal
  */
-export async function initBrowser(
-    storeKey: string,
-    options: Readonly<PartialWithUndefined<InitBrowserOptions>> = {},
-) {
+export async function initBrowser({
+    userDataDirPath,
+    storeKey,
+    browserContextOptions = {},
+}: {
+    userDataDirPath: string;
+    storeKey: string;
+    browserContextOptions?: Readonly<BrowserContextOptions> | undefined;
+}) {
+    await mkdir(userDataDirPath, {recursive: true});
+
     /** WebKit is typically faster but `rebrowser-playwright` seems to only work with Chromium. */
-    const browser = await chromium.launch(options.browser);
-    const browserContext = await browser.newContext(options.browserContext);
+    const browserContext = await chromium.launchPersistentContext(
+        userDataDirPath,
+        browserContextOptions,
+    );
     try {
         browserContext.setDefaultTimeout(10_000);
 
@@ -190,10 +190,9 @@ export async function initBrowser(
             };
         }, storeKey);
 
-        return {browserContext, browser};
+        return {browserContext};
     } catch (error) {
         await browserContext.close();
-        await browser.close();
         throw error;
     }
 }

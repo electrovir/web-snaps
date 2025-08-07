@@ -6,10 +6,14 @@ import {
     type PartialWithUndefined,
 } from '@augment-vir/common';
 import {join} from 'node:path';
-import {type InitBrowserOptions} from '../browser/init-browser.js';
+import {type BrowserContextOptions} from 'rebrowser-playwright';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
-import {withBrowserContext} from '../browser/run-browser.js';
-import {runWebFlow, type RunWebFlowOptions} from '../web-flow/run-web-flow.js';
+import {setupBrowser, withBrowserContext, type BrowserSetupParams} from '../browser/run-browser.js';
+import {
+    runWebFlow,
+    type RunWebFlowOptions,
+    type RunWebFlowParams,
+} from '../web-flow/run-web-flow.js';
 import {createPhaseNamesEnum, type WebFlow, type WebFlowInit} from '../web-flow/web-flow.js';
 
 /**
@@ -19,22 +23,21 @@ import {createPhaseNamesEnum, type WebFlow, type WebFlowInit} from '../web-flow/
  */
 export type RunWebFlowsOptions = PartialWithUndefined<{
     /** Runs before the WebFlows start. */
-    preHook: (
-        params: Readonly<Pick<LoadedBrowser<any>, 'browser' | 'browserContext'>>,
-    ) => MaybePromise<void>;
+    preHook: (params: Readonly<Pick<LoadedBrowser<any>, 'browserContext'>>) => MaybePromise<void>;
     /** Runs after the WebFlows finish, even if they error out. */
     postHook: (
         params: Readonly<
-            Pick<LoadedBrowser<any>, 'browser' | 'browserContext'> & {
+            Pick<LoadedBrowser<any>, 'browserContext'> & {
                 /** If any WebFlow errored out, this is populated with that error. */
                 error?: undefined | Error;
             }
         >,
     ) => MaybePromise<void>;
 
-    browserOptions: Readonly<PartialWithUndefined<InitBrowserOptions>>;
-}> &
-    RunWebFlowOptions &
+    browserContextOptions: Readonly<BrowserContextOptions>;
+}> & {
+    userDataDirPath: string;
+} & RunWebFlowOptions &
     (
         | {
               /**
@@ -76,28 +79,39 @@ export type RunWebFlowsOptions = PartialWithUndefined<{
  * @category Internal
  */
 export type SnapSuite<Context, Output> = {
-    /** Defines a {@link WebFlow} with the suite's `Context` and `Output` type parameters already set. */
+    /**
+     * Defines a {@link WebFlow} with the suite's `Context` and `Output` type parameters and
+     * `webSnapDirPath` option already set.
+     */
     defineWebFlow<const Init extends Readonly<WebFlowInit<Context, Output>>>(
         this: void,
         init: Init,
     ): WebFlow<Context, Output, Init>;
     /**
+     * Executes a single {@link WebFlow} with the suite's `Context` and `Output` type parameters and
+     * `webSnapDirPath` option already set.
+     */
+    runWebFlow(
+        this: void,
+        params: RunWebFlowParams<Context, Output>,
+    ): Promise<(Output | undefined)[]>;
+    /**
      * Executes multiple {@link WebFlow} instances with the suite's `Context` and `Output` type
-     * parameters already set.
+     * parameters and `webSnapDirPath` option already set.
      */
     runWebFlows(
         this: void,
-        context: Context,
-        webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
-        options?: Readonly<Omit<RunWebFlowsOptions, 'webSnapDirPath'>>,
+        params: RunWebFlowsParams<Context, Output>,
     ): Promise<(Output | undefined)[][]>;
     /** Runs {@link withBrowserContext} with the suite's `Context` type parameter already set. */
     withBrowserContext<T = void>(
-        context: Context,
+        this: void,
+        params: BrowserSetupParams<Context>,
         /** Calls this callback and then automatically closes the browser afterwards. */
         callback: (params: Readonly<LoadedBrowser<Context>>) => MaybePromise<T>,
-        options?: Readonly<PartialWithUndefined<InitBrowserOptions>>,
     ): Promise<T>;
+    /** Runs {@link setupBrowser} with the suite's `Context` type parameter already set. */
+    setupBrowser(this: void, params: BrowserSetupParams<Context>): Promise<LoadedBrowser<Context>>;
 };
 
 /**
@@ -112,6 +126,19 @@ export function defineSnapSuite<Context, Output>(
 ): SnapSuite<Context, Output> {
     return {
         /**
+         * Executes a single {@link WebFlow} with the suite's `Context` and `Output` type parameters
+         * and `webSnapDirPath` option already set.
+         */
+        runWebFlow(params: Readonly<RunWebFlowParams<Context, Output>>) {
+            return runWebFlow({
+                ...params,
+                options: {
+                    webSnapDirPath,
+                    ...params.options,
+                },
+            });
+        },
+        /**
          * Defines a {@link WebFlow} with the suite's `Context` and `Output` type parameters already
          * set.
          */
@@ -125,28 +152,41 @@ export function defineSnapSuite<Context, Output>(
          * Executes multiple {@link WebFlow} instances with the suite's `Context` and `Output` type
          * parameters already set.
          */
-        async runWebFlows(
-            this: void,
-            context: Context,
-            webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
-            options: Readonly<Omit<RunWebFlowsOptions, 'webSnapDirPath'>> = {},
-        ) {
-            return runWebFlows<Context, Output>(context, webFlows, {
-                ...options,
-                webSnapDirPath,
-            } as RunWebFlowsOptions);
+        async runWebFlows(this: void, params: RunWebFlowsParams<Context, Output>) {
+            return runWebFlows<Context, Output>({
+                ...params,
+                options: {
+                    webSnapDirPath,
+                    ...params.options,
+                },
+            });
         },
         /** Runs {@link withBrowserContext} with the suite's `Context` type parameter already set. */
         async withBrowserContext<T = void>(
-            context: Context,
+            this: void,
+            params: BrowserSetupParams<Context>,
             /** Calls this callback and then automatically closes the browser afterwards. */
             callback: (params: Readonly<LoadedBrowser<Context>>) => MaybePromise<T>,
-            options: Readonly<PartialWithUndefined<InitBrowserOptions>> = {},
         ) {
-            return await withBrowserContext(context, callback, options);
+            return await withBrowserContext(params, callback);
+        },
+        setupBrowser(this: void, params) {
+            return setupBrowser(params);
         },
     };
 }
+
+/**
+ * Params for {@link runWebFlows}.
+ *
+ * @category Internal
+ */
+export type RunWebFlowsParams<Context, Output> = {
+    context: Context;
+    webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>;
+    userDataDirPath: string;
+    options?: Readonly<Omit<RunWebFlowsOptions, 'userDataDirPath'>> | undefined;
+};
 
 /**
  * Runs an array of {@link WebFlow} instances. Use {@link defineSnapSuite} instead of calling this
@@ -154,11 +194,12 @@ export function defineSnapSuite<Context, Output>(
  *
  * @category Internal
  */
-export async function runWebFlows<Context, Output>(
-    context: Context,
-    webFlows: ReadonlyArray<Readonly<WebFlow<Context, Output>>>,
-    options: Readonly<RunWebFlowsOptions>,
-): Promise<(Output | undefined)[][]> {
+export async function runWebFlows<Context, Output>({
+    context,
+    userDataDirPath,
+    webFlows,
+    options,
+}: Readonly<RunWebFlowsParams<Context, Output>>): Promise<(Output | undefined)[][]> {
     const duplicateFlowKeys = webFlows.reduce(
         (accum, webFlow) => {
             if (webFlow.flowKey in accum.allKeys) {
@@ -180,10 +221,13 @@ export async function runWebFlows<Context, Output>(
     }
 
     return await withBrowserContext(
-        context,
+        {
+            context,
+            userDataDirPath,
+            browserContextOptions: options?.browserContextOptions,
+        },
         async (browserParams) => {
-            await options.preHook?.({
-                browser: browserParams.browser,
+            await options?.preHook?.({
                 browserContext: browserParams.browserContext,
             });
 
@@ -191,17 +235,17 @@ export async function runWebFlows<Context, Output>(
             const allWebFlowPhaseOutputs: (Output | undefined)[][] = [];
             try {
                 const chunks = chunkArray(webFlows, {
-                    chunkSize: options.serial ? 1 : options.batchSize || 10,
+                    chunkSize: options?.serial ? 1 : options?.batchSize || 10,
                 });
 
                 await awaitedForEach(chunks, async (chunk) => {
                     const chunkOutputs = await Promise.all(
                         chunk.map(async (webFlow) => {
-                            return await runWebFlow<Context, Output>(
+                            return await runWebFlow<Context, Output>({
                                 browserParams,
                                 webFlow,
                                 options,
-                            );
+                            });
                         }),
                     );
                     allWebFlowPhaseOutputs.push(...chunkOutputs);
@@ -209,8 +253,7 @@ export async function runWebFlows<Context, Output>(
             } catch (caught) {
                 error = ensureError(caught);
             }
-            await options.postHook?.({
-                browser: browserParams.browser,
+            await options?.postHook?.({
                 browserContext: browserParams.browserContext,
                 error,
             });
@@ -220,7 +263,6 @@ export async function runWebFlows<Context, Output>(
 
             return allWebFlowPhaseOutputs;
         },
-        options.browserOptions,
     );
 }
 

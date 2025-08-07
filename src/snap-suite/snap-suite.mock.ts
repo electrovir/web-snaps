@@ -1,11 +1,7 @@
 import {assert, assertWrap} from '@augment-vir/assert';
 import {collapseWhiteSpace} from '@augment-vir/common';
-import {join, resolve} from 'node:path';
+import {testSnapshotDirPath} from '../repo-paths.mock.js';
 import {defineSnapSuite} from '../snap-suite/snap-suite.js';
-
-const repoDirPath = resolve(import.meta.dirname, '..', '..');
-const notCommittedDirPath = join(repoDirPath, '.not-committed');
-export const testSnapshotDirPath = join(notCommittedDirPath, 'snapshots');
 
 export type MockContext = {
     something: number;

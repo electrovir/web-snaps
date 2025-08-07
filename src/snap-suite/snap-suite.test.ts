@@ -13,6 +13,7 @@ import {
     type SanitizeSnapshotParams,
     type WebFlow,
 } from '../index.js';
+import {testSnapshotDirPath, userDataDirPath} from '../repo-paths.mock.js';
 import {loadPhaseSnapshot} from '../web-snap/load-web-snap.js';
 import {
     type MockContext,
@@ -20,7 +21,6 @@ import {
     type MockOutput,
     mockSnapSuite,
     mockWebFlows,
-    testSnapshotDirPath,
 } from './snap-suite.mock.js';
 
 describe(defineSnapSuite.name, () => {
@@ -123,7 +123,11 @@ describe(defineSnapSuite.name, () => {
         await rm(testSnapshotDirPath, {recursive: true, force: true});
         assert.isLengthAtLeast(mockWebFlows, 1);
 
-        const outputs = await mockSnapSuite.runWebFlows(mockContext, mockWebFlows);
+        const outputs = await mockSnapSuite.runWebFlows({
+            context: mockContext,
+            webFlows: mockWebFlows,
+            userDataDirPath,
+        });
         assert.deepEquals(outputs, [
             [
                 undefined,

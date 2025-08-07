@@ -73,11 +73,13 @@ const myWebFlows = [
 
 /** # 4. Run your WebFlows. */
 
-await runWebFlows(
+await runWebFlows({
     /** Pass in your actual context here. */
-    {} as MyContext,
-    myWebFlows,
-    /** Pass in options here. */
-    {},
-);
+    context: {} as MyContext,
+    webFlows: myWebFlows,
+    /** The directory of your browser's user data. This is required. */
+    userDataDirPath: '',
+    /** Pass in extra options here. */
+    options: {},
+});
 ```
