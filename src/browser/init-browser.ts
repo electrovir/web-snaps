@@ -2,8 +2,15 @@ import {type Truthy} from '@augment-vir/assert';
 import {type AnyFunction, type AnyObject} from '@augment-vir/common';
 import {type QueryThroughShadowOptions} from '@augment-vir/web';
 import {mkdir} from 'node:fs/promises';
-import {type BrowserContextOptions, chromium} from 'rebrowser-playwright';
+import {chromium} from 'rebrowser-playwright';
 import {type DataStore} from './data-store.js';
+
+/**
+ * Options for initializing a persistent browser content.
+ *
+ * @category Internal
+ */
+export type BrowserOptions = Parameters<typeof chromium.launchPersistentContext>[1];
 
 /**
  * Initialize a browser and browser context with scripts inserted for handling elements with closed
@@ -14,19 +21,16 @@ import {type DataStore} from './data-store.js';
 export async function initBrowser({
     userDataDirPath,
     storeKey,
-    browserContextOptions = {},
+    options = {},
 }: {
     userDataDirPath: string;
     storeKey: string;
-    browserContextOptions?: Readonly<BrowserContextOptions> | undefined;
+    options?: Readonly<BrowserOptions> | undefined;
 }) {
     await mkdir(userDataDirPath, {recursive: true});
 
     /** WebKit is typically faster but `rebrowser-playwright` seems to only work with Chromium. */
-    const browserContext = await chromium.launchPersistentContext(
-        userDataDirPath,
-        browserContextOptions,
-    );
+    const browserContext = await chromium.launchPersistentContext(userDataDirPath, options);
     try {
         browserContext.setDefaultTimeout(10_000);
 

@@ -6,7 +6,7 @@ import {
     type PartialWithUndefined,
 } from '@augment-vir/common';
 import {join} from 'node:path';
-import {type BrowserContextOptions} from 'rebrowser-playwright';
+import {type BrowserOptions} from '../browser/init-browser.js';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
 import {setupBrowser, withBrowserContext, type BrowserSetupParams} from '../browser/run-browser.js';
 import {
@@ -34,7 +34,7 @@ export type RunWebFlowsOptions = PartialWithUndefined<{
         >,
     ) => MaybePromise<void>;
 
-    browserContextOptions: Readonly<BrowserContextOptions>;
+    browserOptions: Readonly<BrowserOptions>;
 }> & {
     userDataDirPath: string;
 } & RunWebFlowOptions &
@@ -224,7 +224,7 @@ export async function runWebFlows<Context, Output>({
         {
             context,
             userDataDirPath,
-            browserContextOptions: options?.browserContextOptions,
+            options: options?.browserOptions,
         },
         async (browserParams) => {
             await options?.preHook?.({

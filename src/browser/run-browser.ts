@@ -1,6 +1,5 @@
 import {awaitAllPromisesInObject, randomString, type MaybePromise} from '@augment-vir/common';
-import {type BrowserContextOptions} from 'rebrowser-playwright';
-import {initBrowser} from './init-browser.js';
+import {initBrowser, type BrowserOptions} from './init-browser.js';
 import {type LoadedBrowser} from './loaded-browser.js';
 
 /**
@@ -11,7 +10,7 @@ import {type LoadedBrowser} from './loaded-browser.js';
 export type BrowserSetupParams<Context> = Readonly<{
     context: MaybePromise<Context>;
     userDataDirPath: string;
-    browserContextOptions?: Readonly<BrowserContextOptions> | undefined;
+    options?: Readonly<BrowserOptions> | undefined;
 }>;
 
 /**
@@ -22,7 +21,7 @@ export type BrowserSetupParams<Context> = Readonly<{
 export async function setupBrowser<Context>({
     context: rawContext,
     userDataDirPath,
-    browserContextOptions,
+    options,
 }: BrowserSetupParams<Context>): Promise<LoadedBrowser<Context>> {
     const storeKey = [
         'data-store',
@@ -30,7 +29,7 @@ export async function setupBrowser<Context>({
     ].join('-');
 
     const {browserResult, context} = await awaitAllPromisesInObject({
-        browserResult: initBrowser({userDataDirPath, storeKey, browserContextOptions}),
+        browserResult: initBrowser({userDataDirPath, storeKey, options}),
         context: rawContext,
     });
 
