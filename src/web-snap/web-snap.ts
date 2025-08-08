@@ -11,6 +11,7 @@ import {type WebFlow} from '../web-flow/web-flow.js';
  */
 export type PhaseSnap = {
     phaseName: string;
+    url: string;
     pageHtml: HTMLTemplateResult;
 };
 

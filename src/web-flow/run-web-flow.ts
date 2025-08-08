@@ -145,6 +145,7 @@ export async function runWebFlow<Context, Output>({
                                     ? finalHtml
                                     : finalHtml.serialize(),
                                 phaseName: phase.name,
+                                url: page.url(),
                             });
                         }
 
