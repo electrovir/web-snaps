@@ -69,7 +69,7 @@ export async function loadPhaseSnapshot<const SpecificWebFlow extends Readonly<W
     const domString = convertTemplateToString(phaseSnapshot.pageHtml);
 
     return {
-        domString: domString,
+        domString,
         /** This is a getter so that we don't construct `JSDOM` until necessary. */
         get dom() {
             return new JSDOM(domString);
