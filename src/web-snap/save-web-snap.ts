@@ -31,6 +31,7 @@ function createWebSnapFileContents(webSnap: Readonly<InProgressWebSnap>) {
             '        {',
             `            phaseName: '${phaseSnap.phaseName}',`,
             `            pageHtml: html\`\n${escapedPageHtml}\n\`,`,
+            `            url: '${phaseSnap.url}',`,
             '        },',
         ].join('\n');
     });
