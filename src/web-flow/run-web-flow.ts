@@ -7,7 +7,10 @@ import {
 } from '@augment-vir/common';
 import {getNowInIsoString, getNowInUtcTimezone} from 'date-vir';
 import {JSDOM} from 'jsdom';
+import {mkdir} from 'node:fs/promises';
+import {dirname, join} from 'node:path';
 import {type Page} from 'rebrowser-playwright';
+import sanitizeFilename from 'sanitize-filename';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
 import {getAllPageHtml} from '../web-snap/get-html.js';
 import {saveWebSnap} from '../web-snap/save-web-snap.js';
@@ -35,6 +38,12 @@ export type RunWebFlowOptions = PartialWithUndefined<{
     disableSnapshots: boolean;
     /** Path to the directory that phase snapshots will be saved to. */
     webSnapDirPath: string;
+    /**
+     * The directory to which phase failure screenshots will be saved to.
+     *
+     * @default webSnapDirPath
+     */
+    screenshotFailurePath: string;
     /** A page that you want to use instead of creating a new one internally. */
     existingPage: Page;
 }>;
@@ -153,6 +162,33 @@ export async function runWebFlow<Context, Output>({
                             throw error;
                         }
                     } catch (error) {
+                        try {
+                            const screenshotDirPath =
+                                options.screenshotFailurePath || options.webSnapDirPath;
+
+                            if (screenshotDirPath) {
+                                const screenshotFilePath = join(
+                                    screenshotDirPath,
+                                    'screenshots',
+                                    webFlow.flowKey,
+                                    [
+                                        'phase',
+                                        String(index).padStart(2, '0'),
+                                        sanitizeFilename(phase.name),
+                                        Date.now(),
+                                    ].join('_') + '.png',
+                                );
+                                await mkdir(dirname(screenshotFilePath), {recursive: true});
+                                await page.screenshot({path: screenshotFilePath, fullPage: true});
+                            }
+                        } catch (screenshotError) {
+                            log.error(
+                                ensureErrorAndPrependMessage(
+                                    screenshotError,
+                                    'Failed to save phase failure screenshot.',
+                                ),
+                            );
+                        }
                         throw ensureErrorAndPrependMessage(
                             error,
                             `Phase '${phase.name}' in WebFlow '${webFlow.flowKey}' failed:`,
