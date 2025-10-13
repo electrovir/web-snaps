@@ -57,7 +57,7 @@ const myWebFlows = [
                     return '';
                 },
                 async run({page, context}) {
-                    await page.getByText('more information...').click();
+                    await page.getByText('Learn more').click();
                     await page.getByText('example domains').first().waitFor({state: 'visible'});
                     return {
                         output: {

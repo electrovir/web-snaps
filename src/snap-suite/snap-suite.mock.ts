@@ -34,7 +34,7 @@ export const mockWebFlows = [
                     assert.tsType(context).equals<MockContext>();
                     assert.deepEquals(context, mockContext);
                     assert.strictEquals(context, mockContext);
-                    await page.getByText('more information...').click();
+                    await page.getByText('Learn more').click();
                     await page.getByText('example domains').first().waitFor({state: 'visible'});
                     return {
                         output: {
@@ -74,7 +74,7 @@ export const mockWebFlows = [
                     assert.tsType(context).equals<MockContext>();
                     assert.deepEquals(context, mockContext);
                     assert.strictEquals(context, mockContext);
-                    await page.getByText('more information...').click();
+                    await page.getByText('Learn more').click();
                     await page.getByText('example domains').first().waitFor({state: 'visible'});
                     return {
                         output: {
