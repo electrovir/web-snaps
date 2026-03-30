@@ -1,6 +1,5 @@
-import {assert, assertWrap} from '@augment-vir/assert';
+import {assert} from '@augment-vir/assert';
 import {collapseWhiteSpace} from '@augment-vir/common';
-import {testSnapshotDirPath} from '../repo-paths.mock.js';
 import {defineSnapSuite} from '../snap-suite/snap-suite.js';
 
 export type MockContext = {
@@ -13,7 +12,7 @@ export const mockContext: Readonly<MockContext> = {
 
 export type MockOutput = {wordCount: number};
 
-export const mockSnapSuite = defineSnapSuite<MockContext, MockOutput>(testSnapshotDirPath);
+export const mockSnapSuite = defineSnapSuite<MockContext, MockOutput>();
 
 const {defineWebFlow} = mockSnapSuite;
 
@@ -25,7 +24,9 @@ export const mockWebFlows = [
             {
                 name: 'initial load',
                 async run({page}) {
-                    await page.getByText('example domain').waitFor({state: 'visible'});
+                    await page.getByText('example domain').waitFor({
+                        state: 'visible',
+                    });
                 },
             },
             {
@@ -35,13 +36,13 @@ export const mockWebFlows = [
                     assert.deepEquals(context, mockContext);
                     assert.strictEquals(context, mockContext);
                     await page.getByText('Learn more').click();
-                    await page.getByText('example domains').first().waitFor({state: 'visible'});
+                    await page.getByText('example domains').first().waitFor({
+                        state: 'visible',
+                    });
                     return {
-                        output: {
-                            wordCount: collapseWhiteSpace(
-                                (await page.locator('.help-article').textContent()) || '',
-                            ).split(' ').length,
-                        },
+                        wordCount: collapseWhiteSpace(
+                            (await page.locator('.help-article').textContent()) || '',
+                        ).split(' ').length,
                     };
                 },
             },
@@ -53,35 +54,26 @@ export const mockWebFlows = [
         phases: [
             {
                 name: 'initial load',
-                /** Test sanitization through DOM manipulation. */
-                sanitizeSnapshot({dom}) {
-                    assertWrap.isDefined(dom.window.document.querySelector('p')).innerHTML =
-                        'REDACTED';
-
-                    return dom;
-                },
                 async run({page}) {
-                    await page.getByText('example domain').waitFor({state: 'visible'});
+                    await page.getByText('example domain').waitFor({
+                        state: 'visible',
+                    });
                 },
             },
             {
                 name: 'iana site',
-                /** Test sanitization through string manipulation. */
-                sanitizeSnapshot({domString}) {
-                    return domString.replace(/We provide a web service[^<]+/, 'REDACTED');
-                },
                 async run({page, context}) {
                     assert.tsType(context).equals<MockContext>();
                     assert.deepEquals(context, mockContext);
                     assert.strictEquals(context, mockContext);
                     await page.getByText('Learn more').click();
-                    await page.getByText('example domains').first().waitFor({state: 'visible'});
+                    await page.getByText('example domains').first().waitFor({
+                        state: 'visible',
+                    });
                     return {
-                        output: {
-                            wordCount: collapseWhiteSpace(
-                                (await page.locator('.help-article').textContent()) || '',
-                            ).split(' ').length,
-                        },
+                        wordCount: collapseWhiteSpace(
+                            (await page.locator('.help-article').textContent()) || '',
+                        ).split(' ').length,
                     };
                 },
             },

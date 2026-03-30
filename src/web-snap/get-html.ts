@@ -24,8 +24,7 @@ export async function getAllPageHtml(
             function extractErrorMessage(maybeError: unknown) {
                 if (!maybeError) {
                     return '';
-                }
-                if (maybeError instanceof Error) {
+                } else if (maybeError instanceof Error) {
                     return maybeError.message;
                 } else if (typeof maybeError === 'object' && 'message' in maybeError) {
                     return String(maybeError.message);
@@ -145,7 +144,10 @@ export async function getAllPageHtml(
                 };
             }
         },
-        {storeKey, includeComments},
+        {
+            storeKey,
+            includeComments,
+        },
     );
     if ('debug' in response) {
         console.info(response.debug);

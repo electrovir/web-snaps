@@ -82,16 +82,6 @@ export type WebFlow<
 > = Init & {
     phaseNames: PhaseNamesEnum<Init>;
     flowKey: string;
-    /**
-     * Paths for saving and loading snapshots. These will be `undefined` if the `WebFlow` was
-     * defined without a snap output path.
-     */
-    webSnapPaths:
-        | {
-              ts: string;
-              js: string;
-          }
-        | undefined;
     ContextType: Context;
     OutputType: Output;
 };

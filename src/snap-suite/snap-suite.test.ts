@@ -1,20 +1,12 @@
 import {assert} from '@augment-vir/assert';
-import {collapseWhiteSpace} from '@augment-vir/common';
 import {describe, it} from '@augment-vir/test';
-import {existsSync} from 'node:fs';
-import {rm} from 'node:fs/promises';
-import {join} from 'node:path';
 import {
-    convertTemplateToString,
     defineSnapSuite,
-    type JSDOM,
-    loadWebSnap,
     type PhaseRunParams,
-    type SanitizeSnapshotParams,
     type WebFlow,
+    type WebFlowPhaseResult,
 } from '../index.js';
-import {testSnapshotDirPath, userDataDirPath} from '../repo-paths.mock.js';
-import {loadPhaseSnapshot} from '../web-snap/load-web-snap.js';
+import {userDataDirPath} from '../repo-paths.mock.js';
 import {
     type MockContext,
     mockContext,
@@ -46,9 +38,7 @@ describe(defineSnapSuite.name, () => {
                                     readonly run: ({
                                         page,
                                     }: Readonly<PhaseRunParams<MockContext>>) => Promise<{
-                                        output: {
-                                            wordCount: number;
-                                        };
+                                        wordCount: number;
                                     }>;
                                 },
                             ];
@@ -63,22 +53,16 @@ describe(defineSnapSuite.name, () => {
                             readonly phases: [
                                 {
                                     readonly name: 'initial load';
-                                    readonly sanitizeSnapshot: ({
-                                        dom,
-                                    }: SanitizeSnapshotParams<MockContext>) => JSDOM;
                                     readonly run: ({
                                         page,
                                     }: Readonly<PhaseRunParams<MockContext>>) => Promise<void>;
                                 },
                                 {
                                     readonly name: 'iana site';
-                                    readonly sanitizeSnapshot: ({
-                                        domString,
-                                    }: SanitizeSnapshotParams<MockContext>) => string;
                                     readonly run: ({
                                         page,
                                     }: Readonly<PhaseRunParams<MockContext>>) => Promise<{
-                                        output: MockOutput;
+                                        wordCount: number;
                                     }>;
                                 },
                             ];
@@ -100,18 +84,6 @@ describe(defineSnapSuite.name, () => {
             'initial load': 'initial load',
             'iana site': 'iana site',
         });
-
-        assert.tsType<(typeof mockWebFlows)[0]['webSnapPaths']>().equals<
-            | undefined
-            | {
-                  ts: string;
-                  js: string;
-              }
-        >();
-        assert.deepEquals(mockWebFlows[0].webSnapPaths, {
-            ts: join(testSnapshotDirPath, 'mock-web-flow-1.mock.ts'),
-            js: join(testSnapshotDirPath, 'mock-web-flow-1.mock.js'),
-        });
     });
 
     it('prevents access to type-only properties', () => {
@@ -120,74 +92,55 @@ describe(defineSnapSuite.name, () => {
     });
 
     it('runs web flows', async () => {
-        await rm(testSnapshotDirPath, {recursive: true, force: true});
         assert.isLengthAtLeast(mockWebFlows, 1);
 
-        const outputs = await mockSnapSuite.runWebFlows({
+        const results = await mockSnapSuite.runWebFlows({
             context: mockContext,
             webFlows: mockWebFlows,
             userDataDirPath,
         });
-        assert.deepEquals(outputs, [
-            [
-                undefined,
-                {
-                    wordCount: 115,
-                },
-            ],
-            [
-                undefined,
-                {
-                    wordCount: 115,
-                },
-            ],
-        ]);
+
+        assert.tsType(results).equals<WebFlowPhaseResult<MockOutput>[][]>();
+        assert.isLengthExactly(results, 2);
 
         /**
          * # ================
          *
-         * Test that snapshot files were created.
+         * Test outputs.
          */
-        mockWebFlows.forEach((mockWebFlow) => {
-            assert.isDefined(mockWebFlow.webSnapPaths);
-            assert.isTrue(
-                existsSync(mockWebFlow.webSnapPaths.ts),
-                `file does not exist: ${mockWebFlow.webSnapPaths.ts}`,
-            );
+        assert.deepEquals(
+            results.map((flowResults) => {
+                return flowResults.map((phaseResult) => {
+                    return phaseResult.output;
+                });
+            }),
+            [
+                [
+                    undefined,
+                    {
+                        wordCount: 115,
+                    },
+                ],
+                [
+                    undefined,
+                    {
+                        wordCount: 115,
+                    },
+                ],
+            ],
+        );
+
+        /**
+         * # ================
+         *
+         * Test that every phase has a snapshot string.
+         */
+        results.forEach((flowResults) => {
+            flowResults.forEach((phaseResult) => {
+                assert.isNotEmpty(phaseResult.snapshot);
+                assert.isNotEmpty(phaseResult.url);
+                assert.isNotEmpty(phaseResult.phaseName);
+            });
         });
-
-        /**
-         * # ================
-         *
-         * Test that snapshots were sanitized.
-         */
-        const webSnap2 = await loadWebSnap(mockWebFlows[1]);
-        assert.isLengthExactly(webSnap2.phaseSnaps, 2);
-        assert.hasValue(
-            collapseWhiteSpace(convertTemplateToString(webSnap2.phaseSnaps[0].pageHtml)),
-            '<p>REDACTED</p>',
-        );
-        assert.hasValue(
-            collapseWhiteSpace(convertTemplateToString(webSnap2.phaseSnaps[1].pageHtml)),
-            '<p>REDACTED</p>',
-        );
-
-        /**
-         * # ================
-         *
-         * Test that snapshots can be loaded into a browser.
-         */
-        const {dom} = await loadPhaseSnapshot(
-            mockWebFlows[1],
-            mockWebFlows[1].phaseNames['iana site'],
-        );
-        assert.isDefined(
-            dom.window.document.evaluate(
-                '//*[text()="REDACTED"]',
-                dom.window.document,
-                null,
-                dom.window.XPathResult.FIRST_ORDERED_NODE_TYPE,
-            ),
-        );
     });
 });

@@ -29,11 +29,19 @@ export async function setupBrowser<Context>({
     ].join('-');
 
     const {browserResult, context} = await awaitAllPromisesInObject({
-        browserResult: initBrowser({userDataDirPath, storeKey, options}),
+        browserResult: initBrowser({
+            userDataDirPath,
+            storeKey,
+            options,
+        }),
         context: rawContext,
     });
 
-    return {storeKey, ...browserResult, context};
+    return {
+        storeKey,
+        ...browserResult,
+        context,
+    };
 }
 
 /**

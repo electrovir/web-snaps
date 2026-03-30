@@ -33,9 +33,7 @@ type MyOutput = {
 
 /** # 2. Define a SnapSuite. */
 
-const {defineWebFlow, runWebFlows} = defineSnapSuite<MyContext, MyOutput>(
-    'my/dir/to/save/snapshots',
-);
+const {defineWebFlow, runWebFlows} = defineSnapSuite<MyContext, MyOutput>();
 
 /** # 3. Define your WebFlows. */
 
@@ -47,22 +45,20 @@ const myWebFlows = [
             {
                 name: 'initial load',
                 async run({page}) {
-                    await page.getByText('example domain').waitFor({state: 'visible'});
+                    await page.getByText('example domain').waitFor({
+                        state: 'visible',
+                    });
                 },
             },
             {
                 name: 'iana site',
-                /** Optionally sanitize the snapshot before it is saved. */
-                sanitizeSnapshot(params) {
-                    return '';
-                },
                 async run({page, context}) {
                     await page.getByText('Learn more').click();
-                    await page.getByText('example domains').first().waitFor({state: 'visible'});
+                    await page.getByText('example domains').first().waitFor({
+                        state: 'visible',
+                    });
                     return {
-                        output: {
-                            parsedData: {},
-                        },
+                        parsedData: {},
                     };
                 },
             },

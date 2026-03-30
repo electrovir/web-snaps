@@ -1,22 +1,32 @@
-import {check, checkWrap} from '@augment-vir/assert';
+import {checkWrap} from '@augment-vir/assert';
 import {
     ensureErrorAndPrependMessage,
     log as logImport,
     wrapInTry,
     type PartialWithUndefined,
 } from '@augment-vir/common';
-import {getNowInIsoString, getNowInUtcTimezone} from 'date-vir';
-import {JSDOM} from 'jsdom';
+import {getNowInUtcTimezone} from 'date-vir';
 import {mkdir} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import {type Page} from 'rebrowser-playwright';
 import sanitizeFilename from 'sanitize-filename';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
 import {getAllPageHtml} from '../web-snap/get-html.js';
-import {saveWebSnap} from '../web-snap/save-web-snap.js';
-import {type InProgressWebSnap} from '../web-snap/web-snap.js';
-import {type PhaseRunParams, type PhaseRunResult} from './web-flow-phase.js';
+import {type PhaseRunParams} from './web-flow-phase.js';
 import {type WebFlow} from './web-flow.js';
+
+/**
+ * The result of a single phase within a {@link WebFlow}.
+ *
+ * @category Internal
+ */
+export type WebFlowPhaseResult<Output> = {
+    phaseName: string;
+    output: Output | undefined;
+    /** The full page HTML snapshot captured after the phase finished. */
+    snapshot: string;
+    url: string;
+};
 
 /**
  * Options for {@link runWebFlow}.
@@ -30,19 +40,7 @@ export type RunWebFlowOptions = PartialWithUndefined<{
      * @default false
      */
     silent: boolean;
-    /**
-     * Disable all phase snapshots, even when a phase has `takeSnapshot` set to `true`.
-     *
-     * @default false
-     */
-    disableSnapshots: boolean;
-    /** Path to the directory that phase snapshots will be saved to. */
-    webSnapDirPath: string;
-    /**
-     * The directory to which phase failure screenshots will be saved to.
-     *
-     * @default webSnapDirPath
-     */
+    /** The directory to which phase failure screenshots will be saved to. */
     screenshotFailurePath: string;
     /** A page that you want to use instead of creating a new one internally. */
     existingPage: Page;
@@ -68,7 +66,7 @@ export async function runWebFlow<Context, Output>({
     browserParams,
     webFlow,
     options = {},
-}: Readonly<RunWebFlowParams<Context, Output>>): Promise<(undefined | Output)[]> {
+}: Readonly<RunWebFlowParams<Context, Output>>): Promise<WebFlowPhaseResult<Output>[]> {
     const log = logImport.if(!options.silent);
 
     /* node:coverage ignore next 1: not testing the user provided page */
@@ -82,8 +80,6 @@ export async function runWebFlow<Context, Output>({
 
             log.faint(`${webFlow.flowKey}: start`);
 
-            let wasSnapshotBlocked = false as boolean;
-
             const params: Omit<PhaseRunParams<Context>, 'phaseStartedAt'> = {
                 ...browserParams,
                 originalUrl: webFlow.startUrl,
@@ -91,117 +87,78 @@ export async function runWebFlow<Context, Output>({
                 webFlowStartedAt,
                 webFlowKey: webFlow.flowKey,
                 silent: !!options.silent,
-                blockSnapshot(shouldBlockSnapshot) {
-                    wasSnapshotBlocked = shouldBlockSnapshot;
-                },
             };
 
-            const phaseOutputs: (undefined | Output)[] = [];
+            const phaseResults: WebFlowPhaseResult<Output>[] = [];
 
-            const webSnapInProgress: InProgressWebSnap = {
-                webFlow: {
-                    flowKey: webFlow.flowKey,
-                    startUrl: webFlow.startUrl,
-                    phaseNames: webFlow.phaseNames,
-                },
-                generatedAt: getNowInIsoString(),
-                phaseSnaps: [],
-            };
+            for (const [
+                index,
+                phase,
+            ] of webFlow.phases.entries()) {
+                try {
+                    const phaseParams: PhaseRunParams<Context> = {
+                        ...params,
+                        phaseStartedAt: getNowInUtcTimezone(),
+                    };
 
-            try {
-                for (const [
-                    index,
-                    phase,
-                ] of webFlow.phases.entries()) {
+                    log.faint(`${webFlow.flowKey}: phase ${index}: ${phase.name}`);
+
+                    const phaseResult = await wrapInTry(() => phase.run(phaseParams));
+                    const error = checkWrap.instanceOf(phaseResult, Error);
+
+                    const output: Output | undefined =
+                        checkWrap.notInstanceOf(phaseResult, Error) || undefined;
+
+                    phaseResults.push({
+                        phaseName: phase.name,
+                        output,
+                        snapshot: await getAllPageHtml(page, browserParams.storeKey),
+                        url: page.url(),
+                    });
+
+                    if (error) {
+                        throw error;
+                    }
+                } catch (error) {
                     try {
-                        const phaseParams: PhaseRunParams<Context> = {
-                            ...params,
-                            phaseStartedAt: getNowInUtcTimezone(),
-                        };
+                        const screenshotDirPath = options.screenshotFailurePath;
 
-                        log.faint(`${webFlow.flowKey}: phase ${index}: ${phase.name}`);
-
-                        const phaseResult = await wrapInTry(() => phase.run(phaseParams));
-                        const error = checkWrap.instanceOf(phaseResult, Error);
-
-                        const {disableSnapshot, output}: PhaseRunResult<Output> =
-                            checkWrap.notInstanceOf(phaseResult, Error) || {
-                                disableSnapshot: false,
-                                output: undefined,
-                            };
-
-                        phaseOutputs.push(output);
-
-                        if (
-                            !wasSnapshotBlocked &&
-                            !options.disableSnapshots &&
-                            !phase.disableSnapshot &&
-                            !disableSnapshot
-                        ) {
-                            const rawHtml = await getAllPageHtml(page, browserParams.storeKey);
-                            const finalHtml = phase.sanitizeSnapshot
-                                ? await phase.sanitizeSnapshot({
-                                      ...phaseParams,
-                                      get dom() {
-                                          return new JSDOM(rawHtml);
-                                      },
-                                      domString: rawHtml,
-                                  })
-                                : rawHtml;
-
-                            webSnapInProgress.phaseSnaps.push({
-                                pageHtml: check.isString(finalHtml)
-                                    ? finalHtml
-                                    : finalHtml.serialize(),
-                                phaseName: phase.name,
-                                url: page.url(),
+                        if (screenshotDirPath) {
+                            const screenshotFilePath = join(
+                                screenshotDirPath,
+                                'screenshots',
+                                webFlow.flowKey,
+                                [
+                                    'phase',
+                                    String(index).padStart(2, '0'),
+                                    sanitizeFilename(phase.name),
+                                    Date.now(),
+                                ].join('_') + '.png',
+                            );
+                            await mkdir(dirname(screenshotFilePath), {
+                                recursive: true,
+                            });
+                            await page.screenshot({
+                                path: screenshotFilePath,
+                                fullPage: true,
                             });
                         }
-
-                        if (error) {
-                            throw error;
-                        }
-                    } catch (error) {
-                        try {
-                            const screenshotDirPath =
-                                options.screenshotFailurePath || options.webSnapDirPath;
-
-                            if (screenshotDirPath) {
-                                const screenshotFilePath = join(
-                                    screenshotDirPath,
-                                    'screenshots',
-                                    webFlow.flowKey,
-                                    [
-                                        'phase',
-                                        String(index).padStart(2, '0'),
-                                        sanitizeFilename(phase.name),
-                                        Date.now(),
-                                    ].join('_') + '.png',
-                                );
-                                await mkdir(dirname(screenshotFilePath), {recursive: true});
-                                await page.screenshot({path: screenshotFilePath, fullPage: true});
-                            }
-                        } catch (screenshotError) {
-                            log.error(
-                                ensureErrorAndPrependMessage(
-                                    screenshotError,
-                                    'Failed to save phase failure screenshot.',
-                                ),
-                            );
-                        }
-                        throw ensureErrorAndPrependMessage(
-                            error,
-                            `Phase '${phase.name}' in WebFlow '${webFlow.flowKey}' failed:`,
+                    } catch (screenshotError) {
+                        log.error(
+                            ensureErrorAndPrependMessage(
+                                screenshotError,
+                                'Failed to save phase failure screenshot.',
+                            ),
                         );
                     }
-                }
-            } finally {
-                if (webSnapInProgress.phaseSnaps.length && options.webSnapDirPath) {
-                    await saveWebSnap(webFlow, webSnapInProgress, !!options.silent);
+                    throw ensureErrorAndPrependMessage(
+                        error,
+                        `Phase '${phase.name}' in WebFlow '${webFlow.flowKey}' failed:`,
+                    );
                 }
             }
 
-            return phaseOutputs;
+            return phaseResults;
         } catch (error) {
             throw ensureErrorAndPrependMessage(error, `WebFlow '${webFlow.flowKey}' failed:`);
         }

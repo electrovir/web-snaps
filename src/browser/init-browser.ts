@@ -27,7 +27,9 @@ export async function initBrowser({
     storeKey: string;
     options?: Readonly<BrowserOptions> | undefined;
 }) {
-    await mkdir(userDataDirPath, {recursive: true});
+    await mkdir(userDataDirPath, {
+        recursive: true,
+    });
 
     /** WebKit is typically faster but `rebrowser-playwright` seems to only work with Chromium. */
     const browserContext = await chromium.launchPersistentContext(userDataDirPath, options);
@@ -160,9 +162,7 @@ export async function initBrowser({
 
                 if (queries.length <= 1) {
                     return results;
-                }
-
-                if (Array.isArray(results)) {
+                } else if (Array.isArray(results)) {
                     return results
                         .flatMap((result) => {
                             return handleNestedQueries(
@@ -194,7 +194,9 @@ export async function initBrowser({
             };
         }, storeKey);
 
-        return {browserContext};
+        return {
+            browserContext,
+        };
     } catch (error) {
         await browserContext.close();
         throw error;

@@ -5,7 +5,6 @@ import {
     type MaybePromise,
     type PartialWithUndefined,
 } from '@augment-vir/common';
-import {join} from 'node:path';
 import {type BrowserOptions} from '../browser/init-browser.js';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
 import {setupBrowser, withBrowserContext, type BrowserSetupParams} from '../browser/run-browser.js';
@@ -13,6 +12,7 @@ import {
     runWebFlow,
     type RunWebFlowOptions,
     type RunWebFlowParams,
+    type WebFlowPhaseResult,
 } from '../web-flow/run-web-flow.js';
 import {createPhaseNamesEnum, type WebFlow, type WebFlowInit} from '../web-flow/web-flow.js';
 
@@ -79,30 +79,21 @@ export type RunWebFlowsOptions = PartialWithUndefined<{
  * @category Internal
  */
 export type SnapSuite<Context, Output> = {
-    /**
-     * Defines a {@link WebFlow} with the suite's `Context` and `Output` type parameters and
-     * `webSnapDirPath` option already set.
-     */
+    /** Defines a {@link WebFlow} with the suite's `Context` and `Output` type parameters already set. */
     defineWebFlow<const Init extends Readonly<WebFlowInit<Context, Output>>>(
         this: void,
         init: Init,
     ): WebFlow<Context, Output, Init>;
-    /**
-     * Executes a single {@link WebFlow} with the suite's `Context` and `Output` type parameters and
-     * `webSnapDirPath` option already set.
-     */
+    /** Executes a single {@link WebFlow}. */
     runWebFlow(
         this: void,
         params: RunWebFlowParams<Context, Output>,
-    ): Promise<(Output | undefined)[]>;
-    /**
-     * Executes multiple {@link WebFlow} instances with the suite's `Context` and `Output` type
-     * parameters and `webSnapDirPath` option already set.
-     */
+    ): Promise<WebFlowPhaseResult<Output>[]>;
+    /** Executes multiple {@link WebFlow} instances. */
     runWebFlows(
         this: void,
         params: RunWebFlowsParams<Context, Output>,
-    ): Promise<(Output | undefined)[][]>;
+    ): Promise<WebFlowPhaseResult<Output>[][]>;
     /** Runs {@link withBrowserContext} with the suite's `Context` type parameter already set. */
     withBrowserContext<T = void>(
         this: void,
@@ -119,24 +110,11 @@ export type SnapSuite<Context, Output> = {
  *
  * @category Main
  */
-export function defineSnapSuite<Context, Output>(
-    this: void,
-    /** Output directory for saved snapshots. Setting this to `undefined` disables snapshots. */
-    webSnapDirPath: string | undefined,
-): SnapSuite<Context, Output> {
+export function defineSnapSuite<Context, Output>(this: void): SnapSuite<Context, Output> {
     return {
-        /**
-         * Executes a single {@link WebFlow} with the suite's `Context` and `Output` type parameters
-         * and `webSnapDirPath` option already set.
-         */
+        /** Executes a single {@link WebFlow}. */
         runWebFlow(params: Readonly<RunWebFlowParams<Context, Output>>) {
-            return runWebFlow({
-                ...params,
-                options: {
-                    webSnapDirPath,
-                    ...params.options,
-                },
-            });
+            return runWebFlow(params);
         },
         /**
          * Defines a {@link WebFlow} with the suite's `Context` and `Output` type parameters already
@@ -146,20 +124,11 @@ export function defineSnapSuite<Context, Output>(
             this: void,
             init: Init,
         ): WebFlow<Context, Output, Init> {
-            return defineWebFlow<Context, Output, Init>(init, webSnapDirPath);
+            return defineWebFlow(init);
         },
-        /**
-         * Executes multiple {@link WebFlow} instances with the suite's `Context` and `Output` type
-         * parameters already set.
-         */
+        /** Executes multiple {@link WebFlow} instances. */
         async runWebFlows(this: void, params: RunWebFlowsParams<Context, Output>) {
-            return runWebFlows<Context, Output>({
-                ...params,
-                options: {
-                    webSnapDirPath,
-                    ...params.options,
-                },
-            });
+            return runWebFlows<Context, Output>(params);
         },
         /** Runs {@link withBrowserContext} with the suite's `Context` type parameter already set. */
         async withBrowserContext<T = void>(
@@ -199,7 +168,7 @@ export async function runWebFlows<Context, Output>({
     userDataDirPath,
     webFlows,
     options,
-}: Readonly<RunWebFlowsParams<Context, Output>>): Promise<(Output | undefined)[][]> {
+}: Readonly<RunWebFlowsParams<Context, Output>>): Promise<WebFlowPhaseResult<Output>[][]> {
     const duplicateFlowKeys = webFlows.reduce(
         (accum, webFlow) => {
             if (webFlow.flowKey in accum.allKeys) {
@@ -232,14 +201,14 @@ export async function runWebFlows<Context, Output>({
             });
 
             let error: undefined | Error;
-            const allWebFlowPhaseOutputs: (Output | undefined)[][] = [];
+            const allWebFlowPhaseResults: WebFlowPhaseResult<Output>[][] = [];
             try {
                 const chunks = chunkArray(webFlows, {
                     chunkSize: options?.serial ? 1 : options?.batchSize || 10,
                 });
 
                 await awaitedForEach(chunks, async (chunk) => {
-                    const chunkOutputs = await Promise.all(
+                    const chunkResults = await Promise.all(
                         chunk.map(async (webFlow) => {
                             return await runWebFlow<Context, Output>({
                                 browserParams,
@@ -248,7 +217,7 @@ export async function runWebFlows<Context, Output>({
                             });
                         }),
                     );
-                    allWebFlowPhaseOutputs.push(...chunkOutputs);
+                    allWebFlowPhaseResults.push(...chunkResults);
                 });
             } catch (caught) {
                 error = ensureError(caught);
@@ -261,7 +230,7 @@ export async function runWebFlows<Context, Output>({
                 throw error;
             }
 
-            return allWebFlowPhaseOutputs;
+            return allWebFlowPhaseResults;
         },
     );
 }
@@ -276,23 +245,12 @@ export function defineWebFlow<
     Context,
     Output,
     const Init extends Readonly<WebFlowInit<Context, Output>>,
->(
-    this: void,
-    init: Init,
-    /** Directory path for saved snapshots. */
-    webSnapDirPath: string | undefined,
-): WebFlow<Context, Output, Init> {
+>(this: void, init: Init): WebFlow<Context, Output, Init> {
     const webFlow: Omit<WebFlow, 'ContextType' | 'OutputType'> = {
         flowKey: init.flowKey,
         phases: init.phases,
         startUrl: init.startUrl,
         phaseNames: createPhaseNamesEnum(init),
-        webSnapPaths: webSnapDirPath
-            ? {
-                  ts: join(webSnapDirPath, init.flowKey + '.mock.ts'),
-                  js: join(webSnapDirPath, init.flowKey + '.mock.js'),
-              }
-            : undefined,
     };
 
     Object.defineProperties(webFlow, {
