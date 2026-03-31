@@ -138,6 +138,8 @@ describe(defineSnapSuite.name, () => {
         results.forEach((flowResults) => {
             flowResults.forEach((phaseResult) => {
                 assert.isNotEmpty(phaseResult.snapshot);
+                assert.instanceOf(phaseResult.screenshot, Buffer);
+                assert.isAbove(phaseResult.screenshot.length, 0);
                 assert.isNotEmpty(phaseResult.url);
                 assert.isNotEmpty(phaseResult.phaseName);
             });

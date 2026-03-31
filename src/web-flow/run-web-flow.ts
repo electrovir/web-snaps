@@ -25,6 +25,8 @@ export type WebFlowPhaseResult<Output> = {
     output: Output | undefined;
     /** The full page HTML snapshot captured after the phase finished. */
     snapshot: string;
+    /** A full-page PNG screenshot captured after the phase finished. */
+    screenshot: Buffer;
     url: string;
 };
 
@@ -109,10 +111,21 @@ export async function runWebFlow<Context, Output>({
                     const output: Output | undefined =
                         checkWrap.notInstanceOf(phaseResult, Error) || undefined;
 
+                    const [
+                        snapshot,
+                        screenshot,
+                    ] = await Promise.all([
+                        getAllPageHtml(page, browserParams.storeKey),
+                        page.screenshot({
+                            fullPage: true,
+                        }),
+                    ]);
+
                     phaseResults.push({
                         phaseName: phase.name,
                         output,
-                        snapshot: await getAllPageHtml(page, browserParams.storeKey),
+                        snapshot,
+                        screenshot,
                         url: page.url(),
                     });
 
