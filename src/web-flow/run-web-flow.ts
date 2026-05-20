@@ -23,11 +23,21 @@ import {type WebFlow} from './web-flow.js';
 export type WebFlowPhaseResult<Output> = {
     phaseName: string;
     output: Output | undefined;
-    /** The full page HTML snapshot captured after the phase finished. */
-    snapshot: string;
-    /** A full-page PNG screenshot captured after the phase finished. */
-    screenshot: Buffer;
-    url: string;
+    /**
+     * The full page HTML snapshot captured after the phase finished. This will be left `undefined`
+     * if grabbing the snapshot crashed or failed.
+     */
+    snapshot: string | undefined;
+    /**
+     * A full-page PNG screenshot captured after the phase finished. This will be left `undefined`
+     * if grabbing the screenshot crashed or failed.
+     */
+    screenshot: Buffer | undefined;
+    /**
+     * The URL that the page was on after the phase finished running. This will be left `undefined`
+     * if the page crashes and the url cannot be obtained.
+     */
+    finalPageUrl: string | undefined;
 };
 
 /**
@@ -106,6 +116,9 @@ export async function runWebFlow<Context, Output>({
                     log.faint(`${webFlow.flowKey}: phase ${index}: ${phase.name}`);
 
                     const phaseResult = await wrapInTry(() => phase.run(phaseParams));
+                    const finalPageUrl: string | undefined = wrapInTry(() => page.url(), {
+                        fallbackValue: undefined,
+                    });
                     const error = checkWrap.instanceOf(phaseResult, Error);
 
                     const output: Output | undefined =
@@ -115,10 +128,28 @@ export async function runWebFlow<Context, Output>({
                         snapshot,
                         screenshot,
                     ] = await Promise.all([
-                        getAllPageHtml(page, browserParams.storeKey),
-                        page.screenshot({
-                            fullPage: true,
+                        getAllPageHtml(page, browserParams.storeKey).catch((error: unknown) => {
+                            console.error(
+                                ensureErrorAndPrependMessage(
+                                    error,
+                                    `Failed to take HTML snapshot after phase '${phase.name}' on page '${finalPageUrl}'.`,
+                                ),
+                            );
+                            return undefined;
                         }),
+                        page
+                            .screenshot({
+                                fullPage: true,
+                            })
+                            .catch((error: unknown) => {
+                                console.error(
+                                    ensureErrorAndPrependMessage(
+                                        error,
+                                        `Failed to take screenshot after phase '${phase.name}' on page '${finalPageUrl}'.`,
+                                    ),
+                                );
+                                return undefined;
+                            }),
                     ]);
 
                     phaseResults.push({
@@ -126,7 +157,7 @@ export async function runWebFlow<Context, Output>({
                         output,
                         snapshot,
                         screenshot,
-                        url: page.url(),
+                        finalPageUrl,
                     });
 
                     if (error) {

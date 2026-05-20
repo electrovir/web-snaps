@@ -137,10 +137,12 @@ describe(defineSnapSuite.name, () => {
          */
         results.forEach((flowResults) => {
             flowResults.forEach((phaseResult) => {
+                assert.isDefined(phaseResult.snapshot);
                 assert.isNotEmpty(phaseResult.snapshot);
                 assert.instanceOf(phaseResult.screenshot, Buffer);
                 assert.isAbove(phaseResult.screenshot.length, 0);
-                assert.isNotEmpty(phaseResult.url);
+                assert.isDefined(phaseResult.finalPageUrl);
+                assert.isNotEmpty(phaseResult.finalPageUrl);
                 assert.isNotEmpty(phaseResult.phaseName);
             });
         });
