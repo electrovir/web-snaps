@@ -4,9 +4,16 @@ import {type RequireExactlyOne} from 'type-fest';
 import {type DataStore} from '../browser/data-store.js';
 
 /**
- * Extract all HTML from a Playwright Page, including all shadow DOM HTML, even from closed shadow
- * roots! This requires a browser page that has been started with `withBrowserContext`,
- * `setupBrowser`, or `initBrowser` from this package.
+ * Extract all HTML from a Playwright Page, including all shadow DOM HTML. This requires a browser
+ * page that has been started with `withBrowserContext`, `setupBrowser`, or `initBrowser` from this
+ * package.
+ *
+ * Closed shadow roots are captured only when this runs in the same world as the init script that
+ * tracks them (the main world). When the page's scripts run with rebrowser-patches'
+ * `alwaysIsolated` runtime fix mode (used to avoid main-world bot detection), this `evaluate` runs
+ * in an isolated world that cannot reach the main-world closed-shadow store, so closed shadow roots
+ * are skipped while open shadow roots (reachable cross-world via `Element.shadowRoot`) and the rest
+ * of the document are still serialized.
  *
  * @category Internal
  */
@@ -36,11 +43,11 @@ export async function getAllPageHtml(
             }
 
             try {
-                const dataStore = (globalThis as AnyObject)[storeKey] as DataStore;
-
-                if (!(dataStore as DataStore | undefined)) {
-                    throw new Error('missing data store');
-                }
+                /**
+                 * Undefined when this runs in an isolated world that cannot reach the main-world
+                 * store; serialization falls back to open shadow roots only in that case.
+                 */
+                const dataStore = (globalThis as AnyObject)[storeKey] as DataStore | undefined;
 
                 /** A set of HTML void elements that should not have a closing tag. */
                 const VOID_ELEMENTS = new Set([
@@ -113,7 +120,7 @@ export async function getAllPageHtml(
                  */
                 function getInnerHTML(node: Node): string {
                     const shadowRoot: ShadowRoot | undefined =
-                        dataStore.closedShadows.get(node) ||
+                        dataStore?.closedShadows.get(node) ||
                         (node instanceof Element && node.shadowRoot) ||
                         undefined;
                     const allChildren = [
