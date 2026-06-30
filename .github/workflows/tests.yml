@@ -32,6 +32,5 @@ jobs:
               shell: bash
               run: |
                   npm ci
-                  npx playwright install --with-deps
                   npm run format package.json
                   npm run test:all

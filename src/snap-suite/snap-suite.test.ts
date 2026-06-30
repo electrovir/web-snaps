@@ -31,7 +31,7 @@ describe(defineSnapSuite.name, () => {
                                     readonly name: 'initial load';
                                     readonly run: ({
                                         page,
-                                    }: Readonly<PhaseRunParams<MockContext>>) => Promise<void>;
+                                    }: Readonly<PhaseRunParams<MockContext>>) => Promise<undefined>;
                                 },
                                 {
                                     readonly name: 'iana site';
@@ -55,7 +55,7 @@ describe(defineSnapSuite.name, () => {
                                     readonly name: 'initial load';
                                     readonly run: ({
                                         page,
-                                    }: Readonly<PhaseRunParams<MockContext>>) => Promise<void>;
+                                    }: Readonly<PhaseRunParams<MockContext>>) => Promise<undefined>;
                                 },
                                 {
                                     readonly name: 'iana site';
