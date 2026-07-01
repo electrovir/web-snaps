@@ -1,4 +1,4 @@
-import {type BrowserContext, type Page} from 'rebrowser-playwright';
+import {type BrowserContext, type Page} from '@electrovir/rebrowser-playwright';
 
 /**
  * A loaded browser instance with context and store key.
@@ -7,7 +7,6 @@ import {type BrowserContext, type Page} from 'rebrowser-playwright';
  */
 export type LoadedBrowser<Context> = {
     browserContext: BrowserContext;
-    storeKey: string;
     context: Context;
 };
 

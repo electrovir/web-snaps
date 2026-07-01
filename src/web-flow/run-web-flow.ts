@@ -5,10 +5,10 @@ import {
     wrapInTry,
     type PartialWithUndefined,
 } from '@augment-vir/common';
+import {type Page} from '@electrovir/rebrowser-playwright';
 import {getNowInUtcTimezone} from 'date-vir';
 import {mkdir} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
-import {type Page} from 'rebrowser-playwright';
 import sanitizeFilename from 'sanitize-filename';
 import {type LoadedBrowser} from '../browser/loaded-browser.js';
 import {getAllPageHtml} from '../web-snap/get-html.js';
@@ -85,6 +85,12 @@ export async function runWebFlow<Context, Output>({
     const page = options.existingPage || (await browserParams.browserContext.newPage());
     const createdPage = !options.existingPage;
 
+    /**
+     * A single CDP session, reused for every phase's HTML snapshot. CDP's `DOM.getDocument` reads
+     * the DOM from the browser, so it captures both open and closed shadow roots.
+     */
+    const cdpSession = await page.context().newCDPSession(page);
+
     try {
         try {
             const webFlowStartedAt = getNowInUtcTimezone();
@@ -128,7 +134,7 @@ export async function runWebFlow<Context, Output>({
                         snapshot,
                         screenshot,
                     ] = await Promise.all([
-                        getAllPageHtml(page, browserParams.storeKey).catch((error: unknown) => {
+                        getAllPageHtml(cdpSession).catch((error: unknown) => {
                             console.error(
                                 ensureErrorAndPrependMessage(
                                     error,
@@ -207,6 +213,7 @@ export async function runWebFlow<Context, Output>({
             throw ensureErrorAndPrependMessage(error, `WebFlow '${webFlow.flowKey}' failed:`);
         }
     } finally {
+        await cdpSession.detach();
         if (createdPage) {
             await page.close();
         }

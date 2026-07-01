@@ -1,4 +1,3 @@
-export * from './browser/data-store.js';
 export * from './browser/init-browser.js';
 export * from './browser/loaded-browser.js';
 export * from './browser/run-browser.js';

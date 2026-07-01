@@ -9,6 +9,18 @@ const openShadowContent = 'open-shadow-content-marker';
 const closedShadowContent = 'closed-shadow-content-marker';
 
 /**
+ * Split a marker across a string concatenation so the full marker literal never appears in the
+ * fixture's inline `<script>` source. The script's text content is itself serialized into the
+ * snapshot, so an un-split marker would satisfy the `includes` assertions regardless of whether the
+ * shadow root was actually captured. Only the rendered shadow `<span>` should hold the full
+ * marker.
+ */
+function embedMarkerInScript(marker: string): string {
+    const midpoint = Math.ceil(marker.length / 2);
+    return `'${marker.slice(0, midpoint)}' + '${marker.slice(midpoint)}'`;
+}
+
+/**
  * A page whose inline script attaches both an open and a closed shadow root, each holding a unique
  * marker string, so a snapshot can be checked for the presence of each.
  */
@@ -22,9 +34,9 @@ const shadowFixtureUrl = [
             '<div id="closed-host"></div>',
             '<script>',
             "document.getElementById('open-host').attachShadow({mode: 'open'}).innerHTML =",
-            `'<span>${openShadowContent}</span>';`,
+            `'<span>' + ${embedMarkerInScript(openShadowContent)} + '</span>';`,
             "document.getElementById('closed-host').attachShadow({mode: 'closed'}).innerHTML =",
-            `'<span>${closedShadowContent}</span>';`,
+            `'<span>' + ${embedMarkerInScript(closedShadowContent)} + '</span>';`,
             '</script>',
             '</body></html>',
         ].join(''),
@@ -44,12 +56,17 @@ async function snapshotShadowFixture(runtimeFixMode: string | undefined): Promis
                 context: undefined,
                 userDataDirPath: join(userDataDirPath, `get-html-${runtimeFixMode || 'default'}`),
             },
-            async ({browserContext, storeKey}) => {
+            async ({browserContext}) => {
                 const page = browserContext.pages()[0] ?? (await browserContext.newPage());
                 await page.goto(shadowFixtureUrl, {
                     waitUntil: 'domcontentloaded',
                 });
-                return await getAllPageHtml(page, storeKey);
+                const cdpSession = await page.context().newCDPSession(page);
+                try {
+                    return await getAllPageHtml(cdpSession);
+                } finally {
+                    await cdpSession.detach();
+                }
             },
         );
     } finally {
@@ -58,21 +75,18 @@ async function snapshotShadowFixture(runtimeFixMode: string | undefined): Promis
 }
 
 describe(getAllPageHtml.name, () => {
-    it('captures open and closed shadow DOM in the main world', async () => {
+    it('captures open and closed shadow DOM', async () => {
         const html = await snapshotShadowFixture(undefined);
 
         assert.isTrue(html.includes(openShadowContent), 'open shadow content missing');
         assert.isTrue(html.includes(closedShadowContent), 'closed shadow content missing');
     });
 
-    it('falls back to open shadow DOM only when evaluated in an isolated world', async () => {
+    it('captures closed shadow DOM even in an isolated world', async () => {
         const html = await snapshotShadowFixture('alwaysIsolated');
 
-        /** The main-world closed-shadow store is unreachable here, so it must not throw. */
+        /** CDP reads the DOM from the browser, so the JavaScript world does not matter. */
         assert.isTrue(html.includes(openShadowContent), 'open shadow content missing');
-        assert.isFalse(
-            html.includes(closedShadowContent),
-            'closed shadow content unexpectedly captured from an isolated world',
-        );
+        assert.isTrue(html.includes(closedShadowContent), 'closed shadow content missing');
     });
 });

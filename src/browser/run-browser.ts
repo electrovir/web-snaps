@@ -1,5 +1,5 @@
-import {awaitAllPromisesInObject, randomString, type MaybePromise} from '@augment-vir/common';
-import {initBrowser, type BrowserOptions} from './init-browser.js';
+import {awaitAllPromisesInObject, type MaybePromise} from '@augment-vir/common';
+import {closeBrowserContext, initBrowser, type InitBrowserParams} from './init-browser.js';
 import {type LoadedBrowser} from './loaded-browser.js';
 
 /**
@@ -7,11 +7,11 @@ import {type LoadedBrowser} from './loaded-browser.js';
  *
  * @category Internal
  */
-export type BrowserSetupParams<Context> = Readonly<{
-    context: MaybePromise<Context>;
-    userDataDirPath: string;
-    options?: Readonly<BrowserOptions> | undefined;
-}>;
+export type BrowserSetupParams<Context> = Readonly<
+    {
+        context: MaybePromise<Context>;
+    } & InitBrowserParams
+>;
 
 /**
  * Setup a browser instance for use with the web-snaps package.
@@ -20,25 +20,14 @@ export type BrowserSetupParams<Context> = Readonly<{
  */
 export async function setupBrowser<Context>({
     context: rawContext,
-    userDataDirPath,
-    options,
+    ...params
 }: BrowserSetupParams<Context>): Promise<LoadedBrowser<Context>> {
-    const storeKey = [
-        'data-store',
-        randomString(32),
-    ].join('-');
-
     const {browserResult, context} = await awaitAllPromisesInObject({
-        browserResult: initBrowser({
-            userDataDirPath,
-            storeKey,
-            options,
-        }),
+        browserResult: initBrowser(params),
         context: rawContext,
     });
 
     return {
-        storeKey,
         ...browserResult,
         context,
     };
@@ -60,6 +49,6 @@ export async function withBrowserContext<Context, T = void>(
     try {
         return await callback(browserParams);
     } finally {
-        await browserParams.browserContext.close();
+        await closeBrowserContext(browserParams.browserContext);
     }
 }
