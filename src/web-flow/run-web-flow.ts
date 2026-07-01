@@ -105,6 +105,7 @@ export async function runWebFlow<Context, Output>({
                 webFlowStartedAt,
                 webFlowKey: webFlow.flowKey,
                 silent: !!options.silent,
+                cdpSession,
             };
 
             const phaseResults: WebFlowPhaseResult<Output>[] = [];

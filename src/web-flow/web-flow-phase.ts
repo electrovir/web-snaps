@@ -1,4 +1,5 @@
 import {type MaybePromise} from '@augment-vir/common';
+import {type CDPSession} from '@electrovir/rebrowser-playwright';
 import {type FullDate, type UtcTimezone} from 'date-vir';
 import {type LoadedBrowserPage} from '../browser/loaded-browser.js';
 
@@ -12,6 +13,12 @@ export type PhaseRunParams<Context> = LoadedBrowserPage<Context> & {
     webFlowStartedAt: Readonly<FullDate<UtcTimezone>>;
     webFlowKey: string;
     silent: boolean;
+    /**
+     * A single CDP session, persisted for the entire flow and reused for every phase's HTML
+     * snapshot. Phases may use it to issue their own Chrome DevTools Protocol commands. It is
+     * automatically closed after the flow completes.
+     */
+    cdpSession: Readonly<CDPSession>;
 };
 
 /**
