@@ -29,8 +29,10 @@ export type WebFlowPhaseResult<Output> = {
      */
     snapshot: string | undefined;
     /**
-     * A full-page PNG screenshot captured after the phase finished. This will be left `undefined`
-     * if grabbing the screenshot crashed or failed.
+     * A PNG screenshot of the current viewport captured after the phase finished. This will be left
+     * `undefined` if grabbing the screenshot crashed or failed. It is intentionally not a full-page
+     * screenshot: capturing beyond the viewport forces the browser window to resize for every
+     * capture, which is disruptive in headed and recorded sessions.
      */
     screenshot: Buffer | undefined;
     /**
@@ -144,19 +146,20 @@ export async function runWebFlow<Context, Output>({
                             );
                             return undefined;
                         }),
-                        page
-                            .screenshot({
-                                fullPage: true,
-                            })
-                            .catch((error: unknown) => {
-                                console.error(
-                                    ensureErrorAndPrependMessage(
-                                        error,
-                                        `Failed to take screenshot after phase '${phase.name}' on page '${finalPageUrl}'.`,
-                                    ),
-                                );
-                                return undefined;
-                            }),
+                        /**
+                         * Intentionally a viewport-only screenshot (no `fullPage`): capturing
+                         * beyond the viewport forces the browser window to resize for every
+                         * capture, which is disruptive in headed and recorded sessions.
+                         */
+                        page.screenshot().catch((error: unknown) => {
+                            console.error(
+                                ensureErrorAndPrependMessage(
+                                    error,
+                                    `Failed to take screenshot after phase '${phase.name}' on page '${finalPageUrl}'.`,
+                                ),
+                            );
+                            return undefined;
+                        }),
                     ]);
 
                     phaseResults.push({
@@ -191,7 +194,6 @@ export async function runWebFlow<Context, Output>({
                             });
                             await page.screenshot({
                                 path: screenshotFilePath,
-                                fullPage: true,
                             });
                         }
                     } catch (screenshotError) {
