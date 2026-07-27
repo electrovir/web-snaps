@@ -58,6 +58,12 @@ export type RunWebFlowOptions = PartialWithUndefined<{
     screenshotFailurePath: string;
     /** A page that you want to use instead of creating a new one internally. */
     existingPage: Page;
+    /**
+     * Skip the automatic `page.goto(startUrl)` that otherwise runs before the first phase.
+     *
+     * @default false
+     */
+    skipStartNavigation: boolean;
 }>;
 
 /**
@@ -96,7 +102,9 @@ export async function runWebFlow<Context, Output>({
     try {
         try {
             const webFlowStartedAt = getNowInUtcTimezone();
-            await page.goto(webFlow.startUrl);
+            if (!options.skipStartNavigation) {
+                await page.goto(webFlow.startUrl);
+            }
 
             log.faint(`${webFlow.flowKey}: start`);
 
