@@ -224,9 +224,17 @@ export async function runWebFlow<Context, Output>({
             throw ensureErrorAndPrependMessage(error, `WebFlow '${webFlow.flowKey}' failed:`);
         }
     } finally {
-        await cdpSession.detach();
+        try {
+            await cdpSession.detach();
+        } catch (error) {
+            log.error(ensureErrorAndPrependMessage(error, 'CDP detach failed'));
+        }
         if (createdPage) {
-            await page.close();
+            try {
+                await page.close();
+            } catch (error) {
+                log.error(ensureErrorAndPrependMessage(error, 'Failed to close created web page.'));
+            }
         }
     }
 }
