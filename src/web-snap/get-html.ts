@@ -96,11 +96,16 @@ const nodeSerializers: Record<
     (node: Readonly<SerializableDomNode>, includeComments: boolean) => string
 > = {
     [DomNodeType.Element]: serializeElement,
-    [DomNodeType.Text]: (node) => node.nodeValue || '',
-    [DomNodeType.Comment]: (node, includeComments) =>
-        includeComments ? `<!--${node.nodeValue}-->` : '',
+    [DomNodeType.Text](node) {
+        return node.nodeValue || '';
+    },
+    [DomNodeType.Comment](node, includeComments) {
+        return includeComments ? `<!--${node.nodeValue}-->` : '';
+    },
     [DomNodeType.Document]: serializeChildren,
-    [DomNodeType.DocumentType]: (node) => `<!doctype ${node.nodeName.toLowerCase()}>`,
+    [DomNodeType.DocumentType](node) {
+        return `<!doctype ${node.nodeName.toLowerCase()}>`;
+    },
     [DomNodeType.DocumentFragment]: serializeChildren,
 };
 

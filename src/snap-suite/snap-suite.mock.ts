@@ -24,7 +24,7 @@ export const mockWebFlows = [
             {
                 name: 'initial load',
                 async run({page}) {
-                    await page.getByText('example domain').waitFor({
+                    await page.getByText('Learn more').waitFor({
                         state: 'visible',
                     });
                 },
@@ -55,7 +55,7 @@ export const mockWebFlows = [
             {
                 name: 'initial load',
                 async run({page}) {
-                    await page.getByText('example domain').waitFor({
+                    await page.getByText('Learn more').waitFor({
                         state: 'visible',
                     });
                 },

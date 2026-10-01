@@ -118,13 +118,13 @@ describe(defineSnapSuite.name, () => {
                 [
                     undefined,
                     {
-                        wordCount: 115,
+                        wordCount: 113,
                     },
                 ],
                 [
                     undefined,
                     {
-                        wordCount: 115,
+                        wordCount: 113,
                     },
                 ],
             ],
