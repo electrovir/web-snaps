@@ -40,9 +40,11 @@ export const mockWebFlows = [
                         state: 'visible',
                     });
                     return {
-                        wordCount: collapseWhiteSpace(
-                            (await page.locator('.help-article').textContent()) || '',
-                        ).split(' ').length,
+                        output: {
+                            wordCount: collapseWhiteSpace(
+                                (await page.locator('.help-article').textContent()) || '',
+                            ).split(' ').length,
+                        },
                     };
                 },
             },
@@ -71,9 +73,11 @@ export const mockWebFlows = [
                         state: 'visible',
                     });
                     return {
-                        wordCount: collapseWhiteSpace(
-                            (await page.locator('.help-article').textContent()) || '',
-                        ).split(' ').length,
+                        output: {
+                            wordCount: collapseWhiteSpace(
+                                (await page.locator('.help-article').textContent()) || '',
+                            ).split(' ').length,
+                        },
                     };
                 },
             },

@@ -58,7 +58,9 @@ const myWebFlows = [
                         state: 'visible',
                     });
                     return {
-                        parsedData: {},
+                        output: {
+                            parsedData: {},
+                        },
                     };
                 },
             },

@@ -73,7 +73,103 @@ async function runObservedFlow(
     );
 }
 
+const stoppableSuite = defineSnapSuite<undefined, {phaseNumber: number}>();
+
+/**
+ * Runs a three-phase flow whose second phase may ask to skip the remaining phases and whose third
+ * phase throws, so the result shows whether the flow stopped before reaching the third phase.
+ */
+async function runStoppableFlow({skipRemainingPhases}: {skipRemainingPhases: boolean}) {
+    return await stoppableSuite.withBrowserContext(
+        {
+            context: undefined,
+            userDataDirPath: join(userDataDirPath, `run-web-flow-stop-${skipRemainingPhases}`),
+        },
+        async (browserParams) => {
+            const results = await stoppableSuite.runWebFlow({
+                browserParams,
+                webFlow: stoppableSuite.defineWebFlow({
+                    flowKey: 'stoppable-flow',
+                    startUrl,
+                    phases: [
+                        {
+                            name: 'first',
+                            run() {
+                                return {
+                                    output: {
+                                        phaseNumber: 1,
+                                    },
+                                };
+                            },
+                        },
+                        {
+                            name: 'second',
+                            run() {
+                                return {
+                                    output: {
+                                        phaseNumber: 2,
+                                    },
+                                    skipRemainingPhases,
+                                };
+                            },
+                        },
+                        {
+                            name: 'third',
+                            run() {
+                                throw new Error('Third phase ran.');
+                            },
+                        },
+                    ],
+                }),
+                options: {
+                    silent: true,
+                },
+            });
+
+            return results.map(({phaseName, output}) => {
+                return {
+                    phaseName,
+                    output,
+                };
+            });
+        },
+    );
+}
+
 describe('runWebFlow', () => {
+    it('stops after a phase that returns skipRemainingPhases', async () => {
+        assert.deepEquals(
+            await runStoppableFlow({
+                skipRemainingPhases: true,
+            }),
+            [
+                {
+                    phaseName: 'first',
+                    output: {
+                        phaseNumber: 1,
+                    },
+                },
+                {
+                    phaseName: 'second',
+                    output: {
+                        phaseNumber: 2,
+                    },
+                },
+            ],
+        );
+    });
+
+    it('runs every phase when skipRemainingPhases is not set', async () => {
+        await assert.throws(
+            runStoppableFlow({
+                skipRemainingPhases: false,
+            }),
+            {
+                matchMessage: 'Third phase ran.',
+            },
+        );
+    });
+
     it('navigates to startUrl before the first phase by default', async () => {
         assert.deepEquals(await runObservedFlow(undefined), {
             phasePageUrl: startUrl,

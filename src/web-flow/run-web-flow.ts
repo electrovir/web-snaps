@@ -138,8 +138,7 @@ export async function runWebFlow<Context, Output>({
                     });
                     const error = checkWrap.instanceOf(phaseResult, Error);
 
-                    const output: Output | undefined =
-                        checkWrap.notInstanceOf(phaseResult, Error) || undefined;
+                    const phaseReturn = checkWrap.notInstanceOf(phaseResult, Error) || undefined;
 
                     const [
                         snapshot,
@@ -172,7 +171,7 @@ export async function runWebFlow<Context, Output>({
 
                     phaseResults.push({
                         phaseName: phase.name,
-                        output,
+                        output: phaseReturn?.output,
                         snapshot,
                         screenshot,
                         finalPageUrl,
@@ -180,6 +179,11 @@ export async function runWebFlow<Context, Output>({
 
                     if (error) {
                         throw error;
+                    } else if (phaseReturn?.skipRemainingPhases) {
+                        log.faint(
+                            `${webFlow.flowKey}: stopped after phase ${index}: ${phase.name}`,
+                        );
+                        return phaseResults;
                     }
                 } catch (error) {
                     try {

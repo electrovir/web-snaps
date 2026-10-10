@@ -1,4 +1,4 @@
-import {type MaybePromise} from '@augment-vir/common';
+import {type MaybePromise, type PartialWithUndefined} from '@augment-vir/common';
 import {type CDPSession} from '@electrovir/rebrowser-playwright';
 import {type FullDate, type UtcTimezone} from 'date-vir';
 import {type LoadedBrowserPage} from '../browser/loaded-browser.js';
@@ -22,13 +22,28 @@ export type PhaseRunParams<Context> = LoadedBrowserPage<Context> & {
 };
 
 /**
+ * What a {@link WebFlowPhase}'s `run` method may return.
+ *
+ * @category Internal
+ */
+export type PhaseRunReturn<Output> = PartialWithUndefined<{
+    /** Recorded as this phase's `output` in its `WebFlowPhaseResult`. */
+    output: Output;
+    /**
+     * When `true`, no later phases run and the flow resolves with the phase results collected so
+     * far, including this phase's.
+     */
+    skipRemainingPhases: boolean;
+}>;
+
+/**
  * The {@link WebFlowPhase}'s `run` method type.
  *
  * @category Internal
  */
 export type PhaseRunMethod<Context, Output> = (
     params: Readonly<PhaseRunParams<Context>>,
-) => MaybePromise<Output | void | undefined>;
+) => MaybePromise<PhaseRunReturn<Output> | void | undefined>;
 
 /**
  * A single phase in a `WebFlow`.
